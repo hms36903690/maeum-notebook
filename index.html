@@ -514,7 +514,7 @@ function viewRun(id) {
   return `
   <div class="row" style="align-items:center"><button type="button" class="back" data-go="home">← 목록으로</button>
     ${run.answers.some(hasAnswer) ? '<button type="button" class="btn ghost" id="restartBtn" style="padding:0;font-size:.9rem">처음부터 다시</button>' : ''}</div>
-  <header style="display:flex;flex-direction:column;gap:10px"><h1 style="font-size:1.9rem">${ex.heading || ex.title}</h1>
+  <header style="display:flex;flex-direction:column;gap:10px"><h1 style="font-size:1.9rem">${ex.title}</h1>
     ${`<div class="ex-intro">
       <p class="big">${ex.intro || ex.desc}</p>
       <p class="small">${ex.meta || ex.time + ' ·'} 중간에 나가도 이어서 할 수 있어요. 다 쓰면 PDF로도 저장할 수 있어요.</p>
