@@ -729,6 +729,16 @@ function tbSummary() {
   if (!d || !tbAny(k)) return '오늘 할 일을 다 쏟아 내고, 가장 중요한 세 가지를 골라 30분 칸에 넣어요 →';
   return `오늘 ${tbDayText(k)} →`;
 }
+// 매일 같은 시간에 들어가는 고정 일정 (칸 → 할 일)
+const TB_FIXED_DEFAULT = { '06:00': '명상 · 시각화 · 오늘의 타로', '06:30': '명상 · 시각화 · 오늘의 타로' };
+function tbFixed() { return store.get('tbFixed', TB_FIXED_DEFAULT); }
+// 그날 그 칸에 보일 내용: 그날 따로 쓴 것 > 고정 일정 (그날만 비운 칸은 빈칸)
+function tbSlot(d, key) {
+  const own = d.slots[key];
+  if (own) return own.skip ? null : own;
+  const f = tbFixed()[key];
+  return f ? { t: f, done: false, fixed: true } : null;
+}
 function tbRange() { return store.get('tbRange', { from: 6, to: 24 }); }
 const slotKey = (h, m) => `${pad(h)}:${m ? '30' : '00'}`;
 function tbCalendar(k) {
@@ -763,18 +773,20 @@ function viewTimebox() {
   for (let h = r.from; h < r.to; h++) {
     grid += `<span class="hr">${h}</span>`;
     for (const m of [0, 1]) {
-      const key = slotKey(h, m), c = d.slots[key];
+      const key = slotKey(h, m), c = tbSlot(d, key), pinned = !!tbFixed()[key];
       grid += `<button type="button" class="tb-cell ${c && c.t ? 'fill' : ''} ${c && c.done ? 'done' : ''} ${key === nowKey ? 'now' : ''} ${tbEdit === key ? 'edit' : ''}" data-slot="${key}" aria-label="${h}시 ${m ? '30분' : '정각'}">
-        <span class="m">${m ? ':30' : ':00'}</span><span class="t">${c && c.t ? esc(c.t) : ''}</span></button>`;
+        <span class="m">${m ? ':30' : ':00'}${pinned ? ' 📌' : ''}</span><span class="t">${c && c.t ? esc(c.t) : ''}</span></button>`;
     }
     if (tbEdit && Number(tbEdit.slice(0, 2)) === h) {
-      const c = d.slots[tbEdit] || { t: '', done: false };
+      const c = tbSlot(d, tbEdit) || { t: '', done: false }, pinnedNow = tbFixed()[tbEdit];
       const picks = [...new Set([...tops, ...dumps])];
       grid += `<div class="tb-edit">
         <label class="step-label" for="slotText">${Number(tbEdit.slice(0, 2))}시 ${tbEdit.endsWith('30') ? '30분' : '정각'}부터 30분</label>
         <input class="field" id="slotText" value="${esc(c.t)}" placeholder="이 칸에 할 일" autocomplete="off">
         ${picks.length ? `<div class="chips">${picks.map(t => `<button type="button" class="chip" data-pick="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : '<p class="step-label">우선순위나 브레인 덤프에 적은 일이 여기 나와요. 눌러서 바로 넣을 수 있어요.</p>'}
-        <div class="tools"><button type="button" class="btn primary" id="slotOk">넣기</button><button type="button" class="btn" id="slotNext">다음 칸까지 이어서</button><button type="button" class="btn" id="slotDone">${c.done ? '했어요 ✓ 취소' : '했어요 ✓'}</button><button type="button" class="btn ghost" id="slotDel">비우기</button></div>
+        <div class="tools"><button type="button" class="btn primary" id="slotOk">넣기</button><button type="button" class="btn" id="slotNext">다음 칸까지 이어서</button><button type="button" class="btn" id="slotDone">${c.done ? '했어요 ✓ 취소' : '했어요 ✓'}</button><button type="button" class="btn ghost" id="slotDel">${pinnedNow ? '오늘만 비우기' : '비우기'}</button></div>
+        <div class="tools"><button type="button" class="btn ghost" id="slotPin" style="padding:0">${pinnedNow ? '📌 매일 고정 풀기' : '📌 매일 이 시간에 고정'}</button></div>
+        ${pinnedNow ? `<p class="step-label" style="margin:0">매일 이 시간에 「${esc(pinnedNow)}」가 들어가요. 여기서 고치면 오늘만 바뀌어요.</p>` : ''}
       </div>`;
     }
   }
@@ -874,13 +886,25 @@ function afterTimebox() {
   document.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { tbEdit = tbEdit === b.dataset.slot ? null : b.dataset.slot; route(); if (tbEdit) $('slotText').focus(); });
   if (tbEdit) {
     const key = tbEdit, inp = $('slotText');
-    const setSlot = (t, done) => upd(d => { if (t) d.slots[key] = { t, done: !!done }; else delete d.slots[key]; });
-    const cur = () => tbGet(k).slots[key] || { t: '', done: false };
+    const setSlot = (t, done) => upd(d => {
+      const f = tbFixed()[key];
+      if (t && f && t === f && !done) delete d.slots[key];          // 고정 그대로면 따로 저장하지 않아요
+      else if (t) d.slots[key] = { t, done: !!done };
+      else if (f) d.slots[key] = { t: '', skip: true };             // 고정 칸을 오늘만 비우기
+      else delete d.slots[key];
+    });
+    const cur = () => tbSlot(tbGet(k), key) || { t: '', done: false };
     inp.oninput = () => setSlot(inp.value.trim(), cur().done);
     inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); tbEdit = null; route(); } };
     document.querySelectorAll('[data-pick]').forEach(c => c.onclick = () => { setSlot(c.dataset.pick, false); tbEdit = null; route(); });
     $('slotOk').onclick = () => { setSlot(inp.value.trim(), cur().done); tbEdit = null; route(); };
     $('slotDel').onclick = () => { setSlot('', false); tbEdit = null; route(); };
+    $('slotPin').onclick = () => {
+      const fx = { ...tbFixed() };
+      if (fx[key]) { delete fx[key]; setStamped('tbFixed', fx); toast('매일 고정을 풀었어요'); }
+      else { const t = inp.value.trim() || cur().t; if (!t) return toast('먼저 할 일을 넣어 주세요'); fx[key] = t; setStamped('tbFixed', fx); upd(d => { delete d.slots[key]; }); toast('매일 이 시간에 고정했어요'); }
+      route(); $('slotText') && $('slotText').focus();
+    };
     $('slotDone').onclick = () => { const c = cur(); if (!c.t && !inp.value.trim()) return toast('먼저 할 일을 넣어 주세요'); setSlot(inp.value.trim() || c.t, !c.done); tbEdit = null; route(); };
     $('slotNext').onclick = () => {
       const t = inp.value.trim() || cur().t; if (!t) return toast('먼저 할 일을 넣어 주세요');
@@ -1410,7 +1434,7 @@ function mergeDB(a, b) {
   const sa = a.stamps || {}, sb = b.stamps || {}, st = { ...sb };
   for (const [k, v] of Object.entries(sa)) st[k] = Math.max(st[k] || 0, v);
   out.stamps = st;
-  for (const k of ['tbChecklist', 'tbRange']) {
+  for (const k of ['tbChecklist', 'tbRange', 'tbFixed']) {
     if ((sb[k] || 0) > (sa[k] || 0) && k in b) out[k] = b[k];
     else if (k in a) out[k] = a[k]; else if (k in b) out[k] = b[k];
   }
@@ -1657,7 +1681,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 43;
+const APP_VERSION = 44;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
