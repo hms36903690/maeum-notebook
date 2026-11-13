@@ -515,11 +515,11 @@ function viewRun(id) {
   <div class="row" style="align-items:center"><button type="button" class="back" data-go="home">← 목록으로</button>
     ${run.answers.some(hasAnswer) ? '<button type="button" class="btn ghost" id="restartBtn" style="padding:0;font-size:.9rem">처음부터 다시</button>' : ''}</div>
   <header style="display:flex;flex-direction:column;gap:10px"><h1 style="font-size:1.9rem">${ex.heading || ex.title}</h1>
-    ${run.step === 0 ? `<div class="ex-intro">
+    ${`<div class="ex-intro">
       <p class="big">${ex.intro || ex.desc}</p>
       <p class="small">${ex.meta || ex.time + ' ·'} 중간에 나가도 이어서 할 수 있어요. 다 쓰면 PDF로도 저장할 수 있어요.</p>
       ${[].concat(ex.note || [], ex.notes || []).map(n => `<p class="small">${n}</p>`).join('')}
-    </div>` : ''}
+    </div>`}
     <div class="progress" aria-hidden="true">${run.steps.map((_, i) => `<span class="${i <= run.step ? 'on' : ''}"></span>`).join('')}</div></header>
   <section class="sk" style="transform:none">
     <div class="row"><span class="step-label">${ex.build ? `${run.step + 1}번째 질문` : `${run.step + 1} / ${n}`}</span>
