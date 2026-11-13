@@ -445,7 +445,6 @@ function viewHome() {
     <div class="row"><h3 style="font-size:1.4rem">나의 지도</h3><span class="meta">매일 1분</span></div>
     <p class="desc">${mapSummary()}</p>
   </button>
-  <input class="search" id="q" type="search" placeholder="카드 찾기 (이름이나 설명)" value="${esc(query)}" aria-label="카드 찾기">
   <div class="list" id="exList">
     ${list.map(e => `
       <button type="button" class="sk" data-go="ex-${e.id}">
