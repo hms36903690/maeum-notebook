@@ -751,23 +751,24 @@ const TB_FIXED_DEFAULT = (() => {
   const o = {}, put = (from, to, t) => { for (let m = from; m < to; m += 30) o[`${pad(Math.floor(m / 60))}:${m % 60 ? '30' : '00'}`] = t; };
   put(6 * 60, 7 * 60 + 30, '명상 · 시각화 · 오늘의 타로');
   put(8 * 60, 12 * 60, '출근 & 업무');
-  put(13 * 60, 18 * 60, '보험 영업 & 보험 관련 공부');
+  put(13 * 60, 17 * 60 + 30, '보험 영업 & 보험 관련 공부');
   put(18 * 60, 19 * 60 + 30, '집안일 & 저녁');
   return o;
 })();
 // 이미 고정을 손본 적이 있는 기기에도 새로 정한 고정 일정을 한 번 넣어 줘요
 function tbFixedUpgrade() {
   const v = store.get('tbFixedV', 1);
-  if (v >= 4) return;
+  if (v >= 5) return;
   if ('tbFixed' in DB) {
     const fx = { ...DB.tbFixed };
     if (v < 2) for (const [k, t] of Object.entries(TB_FIXED_DEFAULT)) if (!fx[k]) fx[k] = t;
     if (v < 3 && !fx['07:00']) fx['07:00'] = '명상 · 시각화 · 오늘의 타로';   // 명상·시각화·타로를 7시 30분까지
     for (const k of ['11:00', '11:30']) if (!fx[k]) fx[k] = '출근 & 업무';           // 출근 & 업무를 12시까지
-    for (const k of ['17:00', '17:30']) if (!fx[k]) fx[k] = '보험 영업 & 보험 관련 공부';   // 보험 영업을 6시까지
+    if (v < 4 && !fx['17:00']) fx['17:00'] = '보험 영업 & 보험 관련 공부';
+    if (fx['17:30'] === '보험 영업 & 보험 관련 공부') delete fx['17:30'];   // 보험 영업은 5시 30분까지
     setStamped('tbFixed', fx);
   }
-  store.set('tbFixedV', 4);
+  store.set('tbFixedV', 5);
 }
 function tbFixed() { return store.get('tbFixed', TB_FIXED_DEFAULT); }
 // 그날 그 칸에 보일 내용: 그날 따로 쓴 것 > 고정 일정 (그날만 비운 칸은 빈칸)
@@ -1748,7 +1749,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 51;
+const APP_VERSION = 52;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
