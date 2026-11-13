@@ -133,6 +133,10 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .tb-half { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
 .tb-half > .sk { padding: 16px 14px; min-width: 0; }
 .tb-half .habit { gap: 8px; padding: 8px 0; }
+.ck-item { border-bottom: 1px dashed var(--shadow); padding-bottom: 6px; }
+.ck-item .habit { border-bottom: 0; padding-bottom: 2px; }
+.ck-note { font-size: .9rem; height: 1.8em; padding-left: 34px; background-image: none; border-bottom: 1px solid var(--shadow); }
+.ck-note::placeholder { color: var(--ink-soft); opacity: .7; }
 .tb-half .field { min-width: 0; }
 .tb-half .habit input[data-rename] { flex: 1 1 auto; width: auto; min-width: 0; }
 .tb-memo { flex: 1 0 auto; min-height: 9.5em; resize: none; overflow: hidden; }
@@ -702,10 +706,10 @@ function tbList() { return store.get('tbChecklist', ['절', '명상']); }
 const weekday = k => '일월화수목금토'[new Date(k + 'T00:00').getDay()];
 const addDays = (k, n) => { const d = new Date(k + 'T00:00'); d.setDate(d.getDate() + n); return dkey(d); };
 function tbAll() { return store.get('timebox', {}); }
-function tbGet(k) { const d = tbAll()[k]; return Object.assign({ top: [{ t: '', done: false }, { t: '', done: false }, { t: '', done: false }], dump: '', slots: {}, checks: {}, memo: '' }, d || {}); }
+function tbGet(k) { const d = tbAll()[k]; return Object.assign({ top: [{ t: '', done: false }, { t: '', done: false }, { t: '', done: false }], dump: '', slots: {}, checks: {}, notes: {}, memo: '' }, d || {}); }
 function tbSave(k, d) { const all = tbAll(); d.mod = Date.now(); all[k] = d; store.set('timebox', all); }
 function tbFilled(k) { const d = tbAll()[k]; return d ? Object.values(d.slots || {}).filter(x => x && x.t).length : 0; }
-function tbAny(k) { const d = tbAll()[k]; return !!d && (tbFilled(k) > 0 || d.top.some(x => x.t) || Object.values(d.checks || {}).some(Boolean) || !!(d.memo || '').trim()); }
+function tbAny(k) { const d = tbAll()[k]; return !!d && (tbFilled(k) > 0 || d.top.some(x => x.t) || Object.values(d.checks || {}).some(Boolean) || Object.values(d.notes || {}).some(v => (v || '').trim()) || !!(d.memo || '').trim()); }
 function tbDayText(k) {
   const d = tbAll()[k]; if (!d) return '';
   const tops = d.top.filter(x => x.t);
@@ -805,7 +809,8 @@ function viewTimebox() {
     ${tbListEdit ? `<div class="tb-top">${tbList().map((n, i) => `<div class="habit"><input class="field" data-rename="${i}" value="${esc(n)}" aria-label="${i + 1}번 항목 이름" autocomplete="off"><button type="button" class="btn ghost" data-rmcheck="${i}" style="padding:0 4px;flex:none" aria-label="${esc(n)} 빼기">✕</button></div>`).join('')}</div>
       <form id="addCheckForm" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="field" id="newCheck" placeholder="예: 절 108배" autocomplete="off"><button class="btn" type="submit">추가</button></form>
       <p class="step-label">글자를 눌러 바로 고칠 수 있어요. 고친 목록은 모든 날에 똑같이 나와요.</p>`
-    : tbList().length ? tbList().map(n => `<label class="habit"><input type="checkbox" class="tb-check" data-check="${esc(n)}" ${d.checks[n] ? 'checked' : ''}><span style="${d.checks[n] ? 'text-decoration:line-through;color:var(--ink-soft)' : ''}">${esc(n)}</span></label>`).join('')
+    : tbList().length ? tbList().map(n => `<div class="ck-item"><label class="habit"><input type="checkbox" class="tb-check" data-check="${esc(n)}" ${d.checks[n] ? 'checked' : ''}><span style="${d.checks[n] ? 'text-decoration:line-through;color:var(--ink-soft)' : ''}">${esc(n)}</span></label>
+      <input class="field ck-note" data-note="${esc(n)}" value="${esc((d.notes || {})[n] || '')}" placeholder="적기" aria-label="${esc(n)} 기록" autocomplete="off"></div>`).join('')
     : '<p class="step-label">항목 고치기를 눌러 날마다 할 일을 넣어 보세요.</p>'}
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
@@ -837,6 +842,7 @@ function afterTimebox() {
   $('tbDump').oninput = () => { grow($('tbDump')); upd(d => d.dump = $('tbDump').value); };
   $('tbMemo').oninput = () => { grow($('tbMemo')); upd(d => d.memo = $('tbMemo').value); };
   $('tbListEdit').onclick = () => { tbListEdit = !tbListEdit; route(); };
+  document.querySelectorAll('[data-note]').forEach(inp => inp.oninput = () => upd(d => { d.notes = d.notes || {}; const v = inp.value.trim(); if (v) d.notes[inp.dataset.note] = inp.value; else delete d.notes[inp.dataset.note]; }));
   document.querySelectorAll('[data-check]').forEach(cb => cb.onchange = () => { upd(d => { d.checks[cb.dataset.check] = cb.checked; }); route(); });
   document.querySelectorAll('[data-rmcheck]').forEach(b => b.onclick = () => { const l = tbList(); l.splice(+b.dataset.rmcheck, 1); store.set('tbChecklist', l); route(); });
   document.querySelectorAll('[data-rename]').forEach(inp => inp.onchange = () => {
@@ -845,7 +851,10 @@ function afterTimebox() {
     if (l.includes(nu)) { toast('이미 있는 항목이에요'); inp.value = old; return; }
     l[i] = nu; store.set('tbChecklist', l);
     const all = tbAll();   // 지난 날 체크도 새 이름으로 옮겨요
-    for (const d of Object.values(all)) if (d.checks && old in d.checks) { d.checks[nu] = d.checks[old]; delete d.checks[old]; d.mod = Date.now(); }
+    for (const d of Object.values(all)) {
+      if (d.checks && old in d.checks) { d.checks[nu] = d.checks[old]; delete d.checks[old]; d.mod = Date.now(); }
+      if (d.notes && old in d.notes) { d.notes[nu] = d.notes[old]; delete d.notes[old]; d.mod = Date.now(); }
+    }
     store.set('timebox', all); toast('고쳤어요');
   });
   document.querySelectorAll('[data-rename]').forEach(inp => inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
