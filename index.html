@@ -1,0 +1,1109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f7f6f2">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="마음 공책">
+<meta name="robots" content="noindex">
+<title>마음 공책</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<style>
+/* 레이아웃: 650px 한 줄 공책 칼럼 + 손으로 그린 테두리 카드 + 아래 고정 탭 */
+:root {
+  --paper: #f7f6f2;
+  --card: #fbfaf7;
+  --ink: #2b2a27;
+  --ink-soft: #6b6862;
+  --line: #2b2a27;
+  --shadow: #c9c6bd;
+  --marker: #f3e49b;
+  --marker-ink: #4a4220;
+  --leaf: #8fb573;
+  --leaf-pale: #d3e3b8;
+  --leaf-2: #6e9a55;
+  --bark: #8a6a4b;
+  --dot: #d9a441;
+  --font-hand: "Gaegu", "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1d1c1a; --card: #262522; --ink: #ecebe5; --ink-soft: #a8a59d; --line: #d8d5cc;
+    --shadow: #0f0f0e; --marker: #6b5e22; --marker-ink: #f6eebf; --leaf: #8fb573; --leaf-pale: #4d6a3b; --leaf-2: #b2d496;
+    --bark: #b48e69; --dot: #e3b85d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1d1c1a; --card: #262522; --ink: #ecebe5; --ink-soft: #a8a59d; --line: #d8d5cc;
+  --shadow: #0f0f0e; --marker: #6b5e22; --marker-ink: #f6eebf; --leaf: #8fb573; --leaf-pale: #4d6a3b; --leaf-2: #b2d496;
+  --bark: #b48e69; --dot: #e3b85d; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 120px;
+}
+.wrap { max-width: 650px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3 { font-family: var(--font-hand); font-weight: 700; margin: 0; text-wrap: balance; line-height: 1.25; }
+h1 { font-size: 2.3rem; }
+h2 { font-size: 1.7rem; }
+p { margin: 0; }
+.lead { color: var(--ink-soft); }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px dashed var(--ink); outline-offset: 3px; }
+
+/* 손그림 카드 */
+.sk {
+  background: var(--card); border: 2px solid var(--line);
+  border-radius: 4px 12px 6px 16px / 14px 5px 12px 6px;
+  box-shadow: 3px 4px 0 var(--shadow);
+  padding: 20px 24px; transform: rotate(-.25deg);
+}
+.sk:nth-child(even) { transform: rotate(.3deg); border-radius: 12px 4px 14px 6px / 6px 14px 5px 12px; }
+button.sk, a.sk { display: block; width: 100%; text-align: left; transition: transform .15s, box-shadow .15s; text-decoration: none; }
+button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-shadow: 5px 6px 0 var(--shadow); }
+.row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.row > :first-child { min-width: 0; }
+.card-title { font-size: 1.35rem; font-weight: 700; font-family: var(--font-body); }
+.meta { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: .95rem; white-space: nowrap; }
+.desc { color: var(--ink-soft); margin-top: 6px; }
+.pill {
+  background: var(--marker); color: var(--marker-ink); font-size: .85rem; padding: 1px 10px;
+  border-radius: 10px 4px 12px 5px / 5px 12px 4px 10px;
+}
+.list { display: flex; flex-direction: column; gap: 16px; }
+
+.note {
+  border: 1.5px dashed var(--ink-soft); border-radius: 8px; padding: 16px 18px;
+  display: flex; gap: 14px; align-items: center; color: var(--ink-soft); font-size: .95rem;
+}
+.badge-ic {
+  flex: none; width: 44px; height: 44px; border-radius: 10px; background: var(--marker);
+  display: grid; place-items: center; font-family: var(--font-hand); font-weight: 700; color: var(--marker-ink); font-size: 1.3rem;
+}
+
+.search { border: 0; border-bottom: 2px solid var(--line); background: transparent; width: 100%; padding: 8px 0; font: inherit; color: var(--ink); }
+.search::placeholder { color: var(--ink-soft); }
+
+/* 버튼 */
+.btn {
+  border: 2px solid var(--line); background: var(--card); padding: 8px 18px;
+  border-radius: 14px 6px 16px 8px / 8px 16px 6px 14px; box-shadow: 2px 3px 0 var(--shadow);
+}
+.btn:hover { transform: translate(-1px,-1px); }
+.btn.primary { background: var(--marker); color: var(--marker-ink); }
+.btn.ghost { border-color: transparent; box-shadow: none; background: transparent; color: var(--ink-soft); }
+.btn:disabled { opacity: .45; cursor: default; transform: none; }
+.actions { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+
+/* 실행 화면 */
+.back { align-self: flex-start; border: 0; background: none; color: var(--ink-soft); padding: 0; }
+.progress { display: flex; gap: 6px; }
+.progress span { flex: 1; height: 6px; border-radius: 3px; background: var(--shadow); }
+.progress span.on { background: var(--ink); }
+.step-label { color: var(--ink-soft); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.prompt { font-family: var(--font-hand); font-size: 1.6rem; font-weight: 700; line-height: 1.3; margin: 6px 0 4px; }
+textarea, .field {
+  width: 100%; font: inherit; color: var(--ink); background: transparent; border: 0;
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(1.9em - 1px), var(--shadow) calc(1.9em - 1px), var(--shadow) 1.9em);
+  line-height: 1.9em; padding: 0 2px; resize: vertical; min-height: 7.6em;
+}
+.field { min-height: 0; height: 1.9em; }
+textarea:focus, .field:focus { outline: none; }
+.list-fields { display: flex; flex-direction: column; gap: 6px; }
+.list-fields label { display: flex; gap: 10px; align-items: baseline; }
+.list-fields b { font-family: var(--font-hand); font-size: 1.2rem; width: 1.2em; flex: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip { border: 1.5px solid var(--ink-soft); border-radius: 14px; padding: 2px 12px; font-size: .92rem; }
+.sort-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--shadow); }
+.sort-item > span { min-width: 0; overflow-wrap: anywhere; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.seg button { border: 1.5px solid var(--ink-soft); background: transparent; border-radius: 12px; padding: 2px 10px; font-size: .88rem; color: var(--ink-soft); }
+.seg button.on { background: var(--marker); color: var(--marker-ink); border-color: var(--line); }
+
+/* 지도 */
+.tree { width: 100%; max-width: 100%; height: auto; display: block; }
+.map-eyebrow { color: var(--ink-soft); font-size: .9rem; }
+.map-goal { font-size: 1.3rem; font-weight: 700; margin-top: 2px; }
+.tree text { font-family: var(--font-body); font-weight: 700; fill: var(--ink); }
+.do-btn { flex: none; margin-left: auto; border: 2px solid var(--line); background: var(--card); border-radius: 14px 6px 16px 8px / 8px 16px 6px 14px; padding: 4px 14px; font-size: .92rem; box-shadow: 2px 2px 0 var(--shadow); }
+.do-btn.on { background: var(--leaf-pale); }
+.habit .cnt { color: var(--ink-soft); font-size: .88rem; white-space: nowrap; }
+.habit { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--shadow); }
+.habit input { width: 22px; height: 22px; accent-color: var(--leaf-2); flex: none; }
+.habit span { min-width: 0; overflow-wrap: anywhere; }
+.stat { font-family: var(--font-hand); font-size: 1.25rem; }
+
+/* 같이해요 */
+.post { padding: 12px 0; border-bottom: 1px dashed var(--shadow); display: flex; flex-direction: column; gap: 2px; }
+.post small { color: var(--ink-soft); }
+.cat-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* 일정 */
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-variant-numeric: tabular-nums; }
+.cal .dow { color: var(--ink-soft); font-size: .85rem; }
+.cal button { border: 0; background: transparent; padding: 6px 0 10px; border-radius: 10px; position: relative; }
+.cal button.today { font-weight: 700; text-decoration: underline wavy var(--dot); }
+.cal button.sel { background: var(--marker); color: var(--marker-ink); }
+.cal button.has::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--dot); }
+
+/* 책장 */
+.entry-body { display: flex; flex-direction: column; gap: 18px; }
+.entry-body h4 { margin: 0 0 4px; font-family: var(--font-hand); font-size: 1.2rem; }
+.entry-body p, .entry-body li { white-space: pre-wrap; overflow-wrap: anywhere; }
+.entry-body ul { margin: 0; padding-left: 1.2em; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 480px) { .two { grid-template-columns: 1fr; } }
+.empty { color: var(--ink-soft); text-align: center; padding: 28px 0; }
+
+/* 아래 탭 */
+nav.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  background: var(--paper); border-top: 1.5px solid var(--line);
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+nav.tabs .in { max-width: 650px; margin: 0 auto; display: flex; justify-content: space-between; }
+nav.tabs button { border: 0; background: none; padding: 8px 6px; color: var(--ink-soft); position: relative; }
+nav.tabs button.on { color: var(--ink); font-weight: 700; }
+nav.tabs button.on::after {
+  content: ""; position: absolute; left: 15%; right: 15%; bottom: 2px; height: 6px;
+  background: no-repeat center/100% 100% url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 6'%3E%3Cpath d='M1 4 Q15 1 30 3 T59 2' fill='none' stroke='%23d9a441' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+.side-go {
+  position: fixed; right: calc(32px + env(safe-area-inset-right, 0px)); top: 40%;
+  display: flex; align-items: center; gap: 12px; border: 0; background: none; color: var(--ink-soft);
+}
+.side-go i { width: 52px; height: 52px; border: 2px solid var(--line); border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 1.4rem; color: var(--ink); background: var(--card); box-shadow: 2px 3px 0 var(--shadow); }
+@media (max-width: 1040px) { .side-go { display: none; } }
+.toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 8px 18px; border-radius: 16px; font-size: .92rem; z-index: 9; }
+.lock { max-width: 380px; margin: 8vh auto 0; display: flex; flex-direction: column; gap: 18px; text-align: center; }
+.lock form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.lock .field { font-size: 1.2rem; letter-spacing: .2em; }
+.lock .err { color: #b4472f; min-height: 1.4em; font-size: .92rem; }
+.lock .warn { font-size: .88rem; color: var(--ink-soft); }
+.lock-logo { width: 72px; height: 72px; margin: 0 auto; border-radius: 18px; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.intro { display: flex; flex-direction: column; gap: 20px; }
+.intro .icon-back { align-self: flex-start; border: 0; background: none; font-size: 2.6rem; line-height: 1; padding: 0 6px; color: var(--ink); }
+.intro h1 { font-size: 2.4rem; }
+.intro .big { font-size: 1.15rem; line-height: 1.8; }
+.intro .small { color: var(--ink-soft); font-size: .92rem; }
+.btn-dark { width: 100%; border: 0; background: var(--ink); color: var(--paper); font-size: 1.1rem; padding: 16px; border-radius: 22px 10px 24px 12px / 12px 24px 10px 22px; }
+.btn-dark:hover { opacity: .92; }
+.btn-dark.ghosty { background: transparent; color: var(--ink); border: 2px solid var(--line); }
+@media print {
+  @page { margin: 16mm; }
+  :root { --paper: #fff; --card: #fff; --ink: #222; --ink-soft: #555; --line: #222; --shadow: #fff; color-scheme: light; }
+  body { padding: 0 !important; background: #fff; }
+  nav.tabs, .side-go, .toast, .back, .actions, .no-print { display: none !important; }
+  .sk { box-shadow: none; transform: none !important; break-inside: auto; }
+}
+.chips-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.cat-chip { border: 1.5px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 18px; border-radius: 14px 8px 16px 10px / 10px 16px 8px 14px; }
+.cat-chip.on { background: var(--ink); color: var(--paper); }
+.cat-chip.add { border-style: dashed; color: var(--ink-soft); }
+.hl { background: linear-gradient(transparent 55%, var(--marker) 55%); padding: 0 2px; }
+.t-card { display: flex; flex-direction: column; gap: 16px; }
+.t-card .field { font-size: 1.05rem; }
+.t-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1.5px dashed var(--ink-soft); padding-top: 14px; color: var(--ink-soft); font-size: .92rem; font-variant-numeric: tabular-nums; }
+.t-foot button { border: 0; background: none; padding: 0; color: var(--ink-soft); text-decoration: underline; font-size: .92rem; }
+.line-item { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 14px 0; border-bottom: 1.5px dashed var(--shadow); }
+.line-item .who { font-size: .9rem; color: var(--ink-soft); }
+.line-item .who b { color: var(--ink); }
+.line-item .txt { grid-column: 1; font-size: 1.05rem; overflow-wrap: anywhere; }
+.line-item .heart { grid-row: 1 / span 2; grid-column: 2; border: 0; background: none; color: var(--ink-soft); font-size: 1rem; }
+.line-item .heart.on { color: #c4553a; }
+.line-item .del { border: 0; background: none; color: var(--ink-soft); font-size: .82rem; padding: 0; text-decoration: underline; justify-self: start; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; }
+.side-nav { position: fixed; top: 50%; display: flex; align-items: center; gap: 12px; border: 0; background: none; color: var(--ink-soft); z-index: 4; }
+.side-nav.l { left: calc(32px + env(safe-area-inset-left, 0px)); }
+.side-nav.r { right: calc(32px + env(safe-area-inset-right, 0px)); }
+.side-nav i { width: 52px; height: 52px; border: 2px solid var(--line); border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 1.4rem; color: var(--ink); background: var(--card); box-shadow: 2px 3px 0 var(--shadow); }
+@media (max-width: 1040px) { .side-nav { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<main class="wrap" id="app"></main>
+<button class="side-go" id="sideGo" type="button" hidden>같이해요 <i>›</i></button>
+<nav class="tabs" aria-label="메뉴"><div class="in" id="tabs"></div></nav>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// ---------- 저장 ----------
+// 기록은 이 기기(휴대폰) 안에 "암호화"되어 저장됩니다. 서버로는 아무것도 보내지 않습니다.
+// 비밀번호로 만든 열쇠(PBKDF2 → AES-GCM)가 있어야만 열 수 있고, 열쇠는 메모리에만 있습니다.
+const BOX_KEY = 'maeum-notebook:box';
+let DB = {}, KEY = null, SALT = null, RAW = null, saveTimer = null, saveChain = Promise.resolve();
+const te = new TextEncoder(), td = new TextDecoder();
+const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(pw, salt) {
+  const base = await crypto.subtle.importKey('raw', te.encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function openBox(box, key) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv) }, key, unb64(box.ct));
+  return JSON.parse(td.decode(pt));
+}
+async function sealBox() {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, KEY, te.encode(JSON.stringify(DB)));
+  return { v: 1, kdf: 'PBKDF2-SHA256-310000', salt: b64(SALT), iv: b64(iv), ct: b64(ct) };
+}
+function readBox() { try { const v = localStorage.getItem(BOX_KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function writeBox(box) { localStorage.setItem(BOX_KEY, JSON.stringify(box)); }
+function saveNow() {
+  if (!KEY) return saveChain;
+  const key = KEY;
+  saveChain = saveChain.then(async () => {
+    if (KEY !== key) return;
+    const box = await sealBox();
+    writeBox(box); RAW = box;
+  }).catch(() => toast('저장하지 못했어요. 휴대폰 저장 공간을 확인해 주세요'));
+  return saveChain;
+}
+function pushServer() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); }
+const store = {
+  get(k, d) { return k in DB ? DB[k] : d; },
+  set(k, v) { DB[k] = v; pushServer(); },
+  del(k) { delete DB[k]; pushServer(); }
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const dkey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => dkey(new Date());
+const prettyDate = k => { const [y, m, d] = k.split('-'); return `${y}년 ${+m}월 ${+d}일`; };
+
+// ---------- 연습 목록 ----------
+const QUESTION_POOL = [
+  '요즘 나를 가장 많이 웃게 한 건 뭐예요?', '지금 내 마음의 날씨는 어때요? 왜 그런 것 같아요?',
+  '최근에 미뤄 둔 일이 있다면, 왜 미뤘을까요?', '오늘 내 몸은 무엇을 원하고 있어요?',
+  '내가 나에게 자주 하는 말 중 바꾸고 싶은 말은?', '1년 전의 나에게 해 주고 싶은 말은?',
+  '요즘 누구에게 고마워요? 그 사람에게 말했나요?', '내가 정말 좋아하는데 잊고 지낸 것은?',
+  '지금 가장 내려놓고 싶은 생각은?', '오늘 하루를 한 단어로 하면?',
+  '나를 지치게 하는 것과 채워 주는 것은 각각 뭐예요?', '지금 내가 바꿀 수 있는 작은 습관 하나는?'
+];
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+const EXERCISES = [
+  { id: 'create10', title: '현실 창조 10단계', time: '10분', tag: 'NEW', heading: '소망 그리기',
+    desc: '이루고 싶은 것 하나를 골라, 이미 이뤄진 날의 장면을 그리고 오늘 뻗을 한 발을 정해요.',
+    intro: '이루고 싶은 것 하나를 골라요. 거기까지 가는 길은 접어 두고, 이미 다 이뤄진 날의 한 장면을 눈에 보이듯 그려요. 마지막에는 오늘 뻗을 한 발을 정해요.',
+    note: '열 단계의 순서를 따라 써요. 화면마다 붙은 숫자가 단계예요. 이뤄진다고 약속하지는 않아요. 원하는 것을 또렷이 하고 오늘 한 걸음을 정하는 데 써요.',
+    steps: [
+      { p: '이루고 싶은 것 하나를 한 문장으로 적어요.', h: '"~하고 싶다" 대신 "~한다"로 써 보세요.' },
+      { p: '그게 왜 나에게 중요해요?' },
+      { p: '이미 이뤄진 날, 아침에 눈을 뜨면 무엇이 보여요?', h: '장소, 소리, 냄새까지 적어 보세요.' },
+      { p: '그날 나는 어떤 기분이에요?' },
+      { p: '그날의 나는 어떤 사람이 되어 있어요?' },
+      { p: '지금 나와 그날의 나 사이에 놓인 것은?', t: 'list', n: 3 },
+      { p: '그중 가장 작은 돌 하나는 뭐예요?' },
+      { p: '이미 가진 도움(사람, 시간, 능력)을 적어요.', t: 'list', n: 3 },
+      { p: '오늘 뻗을 한 발은 뭐예요?', h: '10분 안에 할 수 있는 크기로요.' },
+      { p: '그날의 내가 지금의 나에게 한마디 해 준다면?' }
+    ] },
+  { id: 'belief', title: '숨은 믿음 찾기', time: '20분', tag: 'NEW', heading: '믿음 찾기',
+    desc: '자꾸 마음이 조이는 주제 하나를 골라, 그 밑에서 나를 움직이는 두 줄짜리 규칙을 찾아요.',
+    intro: '자꾸 마음이 조이는 주제 하나를 골라 들어가요. 그 밑에는 대개 두 줄짜리 규칙이 있어요. “○○하면 위험하다, 그러니 △△해야 안전하다.” 어떤 순간이 오면 이 규칙이 저절로 켜져서 가슴이 조이고 손이 먼저 움직여요. 그 두 줄을 찾아 이름을 붙여 봐요.',
+    meta: '20분 안팎 · 다섯 단계 · 중간에 나가도 이 기기에서 이어서 할 수 있어요.',
+    notes: ['경보가 울리는 한가운데보다 조금 가라앉은 뒤에 하는 게 좋아요. 지금 가슴이 조여 있다면 길게 내쉬는 숨을 몇 번 먼저 하고 시작해요.',
+      '규칙은 결함이 아니라 한때 나를 지킨 것들이라, 마지막은 반박이 아니라 이름 붙이기로 끝나요.'],
+    steps: [
+      { p: '자꾸 마음이 조이는 주제 하나를 골라요.', h: '돈, 일, 관계, 몸, 평가… 하나만요.' },
+      { p: '최근 그 주제에서 가슴이 조였던 순간을 하나 떠올려요. 그때 손이 먼저 한 일은 뭐였어요?', h: '어디서, 누구와, 무슨 일이 있었는지와 내가 바로 한 행동을 적어요.' },
+      { p: '그 순간 머릿속에 지나간 말을 그대로 옮겨 봐요.', show: 1, h: '다듬지 말고 들린 그대로요.' },
+      { p: '그 밑의 두 줄짜리 규칙을 적어요.', t: 'list', n: 2, ph: ['○○하면 위험하다', '그러니 △△해야 안전하다'], show: 2,
+        h: '예: “실수하면 버려진다, 그러니 늘 완벽해야 안전하다.”' },
+      { p: '이 규칙에 이름을 붙여요. 그리고 한때 나를 어떻게 지켜 줬는지 적어요.', t: 'list', n: 2, labels: ['이름', '지켜 준 일'], show: 3,
+        h: '예: 이름 “늘 대기 중” · 지켜 준 일 “혼나지 않게 해 줬다”' }
+    ] },
+  { id: 'thanks', title: '감사 세 줄', time: '3분', tag: '처음이라면 이것부터',
+    intro: '오늘 고마웠던 일 세 가지를 적고, 그중 하나가 왜 고마웠는지 적어요.', meta: '3분 ·',
+    desc: '오늘 고마웠던 일 세 가지와 그중 하나가 고마웠던 이유.',
+    steps: [
+      { p: '오늘 고마웠던 일 세 가지', t: 'list', n: 3, h: '아주 작은 것도 좋아요.' },
+      { p: '그중 하나가 고마웠던 이유는?', show: 0 }
+    ] },
+  { id: 'ask', title: '나에게 묻고 답하기', time: '5분~',
+    desc: '질문을 하나씩 받아 답해요. 내가 나에게 질문을 던져도 돼요.',
+    intro: '질문을 하나씩 받아 답해요. 답한 뒤에는 다음 질문을 받거나, 내가 나에게 질문을 던져도 돼요. 그만하고 싶을 때 끝내면 돼요.',
+    meta: '5분부터 ·',
+    build: () => shuffle(QUESTION_POOL).slice(0, 1).map(p => ({ p, swap: true })) },
+  { id: 'letter', title: '미래의 내가 나에게 쓰는 편지', time: '10분',
+    intro: '원하는 모습이 된 미래의 내가, 지금의 나에게 무엇을 하면 좋을지 편지로 말해 줘요.', meta: '10분 ·',
+    desc: '원하는 모습이 된 미래의 내가 지금의 나에게, 무엇을 하면 좋을지 말해 줘요.',
+    steps: [
+      { p: '몇 년 뒤의 나에게서 편지를 받는다면, 그건 언제의 나예요?' },
+      { p: '그때의 나는 어떤 모습으로 살고 있어요?' },
+      { p: '이제 미래의 내가 되어 편지를 써요.', h: '"안녕, 지금의 나야."로 시작해 보세요.', big: true },
+      { p: '편지에서 가장 마음에 남는 한 줄은?' }
+    ] },
+  { id: 'worry', title: '걱정 내려놓기', time: '10분',
+    intro: '머릿속 걱정을 다 꺼내 놓고, 할 수 있는 것과 어쩔 수 없는 것으로 나눠요. 어쩔 수 없는 것은 내려놓아요.', meta: '10분 ·',
+    desc: '걱정을 다 꺼내 할 수 있는 것과 어쩔 수 없는 것으로 나누고, 어쩔 수 없는 것은 내려놓아요.',
+    steps: [
+      { p: '지금 걱정되는 것을 모두 꺼내요.', t: 'list', n: 6, h: '빈칸은 남겨도 돼요.' },
+      { p: '하나씩 나눠 봐요.', t: 'sort', from: 0 },
+      { p: '할 수 있는 것 중 하나, 첫걸음은 뭐예요?', show: 'can' },
+      { p: '어쩔 수 없는 것에게 작별 인사를 써요.', show: 'cannot', h: '"이건 내가 쥐고 있지 않아도 돼."처럼요.' }
+    ] },
+  { id: 'four', title: '네 가지 질문', time: '15분',
+    intro: '지금 나를 괴롭히는 생각 하나를 붙잡고, 네 가지 질문으로 천천히 물어봐요. 마지막에는 그 생각을 뒤집어 봐요.', meta: '15분 안팎 ·',
+    note: '바이런 케이티의 책 『네 가지 질문』을 참고해 만들었어요. 바이런 케이티와 따로 관계가 있는 곳은 아니에요.',
+    desc: '나를 괴롭히는 생각 하나를 네 가지 질문으로 묻고, 뒤집어 봐요.',
+    steps: [
+      { p: '나를 괴롭히는 생각 하나를 짧게 적어요.', h: '예: "그 사람은 나를 무시해."' },
+      { p: '1. 그게 사실인가요?', show: 0 },
+      { p: '2. 그게 사실이라고 확실히 알 수 있나요?', show: 0 },
+      { p: '3. 그 생각을 믿을 때 나는 어떻게 반응해요?', show: 0 },
+      { p: '4. 그 생각이 없다면 나는 어떤 사람일까요?', show: 0 },
+      { p: '생각을 뒤집어 보고, 뒤집은 말이 맞는 예를 찾아요.', show: 0, h: '예: "나는 나를 무시해." "그 사람은 나를 존중해."' }
+    ] }
+];
+const exById = id => EXERCISES.find(e => e.id === id);
+
+// ---------- 상태 ----------
+let entries = [];
+let map = null;
+let SAMPLE_POSTS = [];
+let posts = SAMPLE_POSTS;
+let run = null;          // 진행 중인 연습
+let query = '';
+let calSel = today(), calMonth = new Date();
+let confirmDel = null;
+
+const saveEntries = () => store.set('entries', entries);
+const saveMap = () => store.set('map', map);
+const savePosts = () => store.set('posts', posts);
+
+function toast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 1800);
+}
+
+// ---------- 라우팅 ----------
+const TABS = [['home', '대화하기'], ['together', '같이해요'], ['calendar', '일정'], ['shelf', '책장']];
+function route() {
+  const h = (location.hash || '#home').slice(1);
+  const app = document.getElementById('app');
+  document.querySelector('nav.tabs').hidden = !KEY;
+  if (!KEY) { document.getElementById('sideGo').hidden = true; app.innerHTML = viewLock(); afterLock(); return; }
+  if (h === 'security') { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSecurity(); afterSecurity(); return; }
+  const base = h.startsWith('ex-') || h === 'map' ? 'home' : h.startsWith('entry-') ? 'shelf' : h;
+  document.getElementById('tabs').innerHTML = TABS.map(([k, l]) =>
+    `<button type="button" class="${k === base ? 'on' : ''}" data-go="${k}">${l}</button>`).join('');
+  document.getElementById('sideGo').hidden = base !== 'home';
+  if (h.startsWith('ex-')) app.innerHTML = viewRun(h.slice(3));
+  else if (h === 'map') app.innerHTML = viewMap();
+  else if (h === 'together') app.innerHTML = viewTogether();
+  else if (h === 'calendar') app.innerHTML = viewCalendar();
+  else if (h.startsWith('entry-')) app.innerHTML = viewEntry(h.slice(6));
+  else if (h === 'shelf') app.innerHTML = viewShelf();
+  else app.innerHTML = viewHome();
+  afterRender(h);
+}
+const go = h => { if (location.hash === '#' + h) route(); else location.hash = h; window.scrollTo(0, 0); };
+
+// ---------- 대화하기 ----------
+function mapSummary() {
+  if (!map) return '목표 하나를 정하고, 꾸준히 할 것을 서너 가지 적어요. 한 날 하나씩 나무에 잎이 돋아요 →';
+  const leaves = countLeaves();
+  return `「${esc(map.goal)}」 · 잎 ${leaves}장. 오늘 체크하러 가기 →`;
+}
+function viewHome() {
+  const q = query.trim();
+  const list = EXERCISES.filter(e => !q || (e.title + e.desc).includes(q));
+  const todayPosts = posts.filter(p => p.date === today()).length;
+  return `
+  <header style="display:flex;flex-direction:column;gap:10px">
+    <h1>자신과 대화하기</h1>
+    <p class="lead">질문을 따라 쓰다 보면 내 마음이 보여요.</p>
+  </header>
+  <button type="button" class="sk" data-go="map">
+    <div class="row"><h3 style="font-size:1.4rem">나의 지도</h3><span class="meta">매일 1분</span></div>
+    <p class="desc">${mapSummary()}</p>
+  </button>
+  <input class="search" id="q" type="search" placeholder="카드 찾기 (이름이나 설명)" value="${esc(query)}" aria-label="카드 찾기">
+  <div class="list" id="exList">
+    ${list.map(e => `
+      <button type="button" class="sk" data-go="ex-${e.id}">
+        <div class="row"><span class="card-title">${e.title}</span>
+          <span class="meta">${e.tag ? `<span class="pill">${e.tag}</span>` : ''}${e.time}</span></div>
+        <p class="desc">${e.desc}</p>
+      </button>`).join('') || '<p class="empty">찾는 카드가 없어요. 다른 말로 찾아보세요.</p>'}
+  </div>
+  <button type="button" class="sk" data-go="together" style="margin-top:12px">
+    <div class="row"><h3 style="font-size:1.4rem">같이해요!</h3><span class="meta">운동 · 명상 · 독서 · 감사 …</span></div>
+    <p class="desc">${todayPosts ? `오늘 ${todayPosts}줄 남겼어요. 한 줄 더 →` : '오늘의 한 줄을 남겨요 →'}</p>
+  </button>`;
+}
+
+// ---------- 연습 진행 ----------
+function startRun(id) {
+  const ex = exById(id); if (!ex) return null;
+  const draft = store.get('draft:' + id, null);
+  if (draft) { draft.started = false; return draft; }
+  const steps = (ex.build ? ex.build() : ex.steps).map(s => ({ ...s }));
+  return { id, step: 0, started: false, steps, answers: steps.map(s => s.t === 'list' ? Array(s.n).fill('') : s.t === 'sort' ? [] : '') };
+}
+function canList(r, want) {
+  const sortIdx = r.steps.findIndex(s => s.t === 'sort');
+  const items = r.answers[sortIdx] || [];
+  return items.filter(i => i.can === want).map(i => i.t);
+}
+function viewRun(id) {
+  const ex = exById(id);
+  if (!ex) return `<p class="empty">없는 카드예요.</p>`;
+  if (!run || run.id !== id) run = startRun(id);
+  if (run.done) return viewDone(ex);
+  if (!run.started) return viewIntro(ex);
+  const s = run.steps[run.step], a = run.answers[run.step], n = run.steps.length;
+  let above = '';
+  if (typeof s.show === 'number') {
+    const src = run.answers[s.show];
+    const items = Array.isArray(src) ? src.filter(Boolean) : src ? [src] : [];
+    if (items.length) above = `<div class="chips">${items.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>`;
+  } else if (s.show === 'can' || s.show === 'cannot') {
+    const items = canList(run, s.show === 'can');
+    above = items.length ? `<div class="chips">${items.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>`
+      : `<p class="desc" style="margin-bottom:10px">${s.show === 'can' ? '할 수 있는 것으로 나눈 걱정이 없어요.' : '어쩔 수 없는 것으로 나눈 걱정이 없어요.'} 그래도 적고 싶은 게 있으면 적어요.</p>`;
+  }
+  let input;
+  if (s.t === 'list') {
+    input = `<div class="list-fields">${a.map((v, i) => `
+      <label><b>${s.labels ? '' : i + 1}</b>${s.labels ? `<span class="step-label" style="flex:none;width:5em">${s.labels[i]}</span>` : ''}
+      <input class="field" id="f${i}" data-li="${i}" value="${esc(v)}" placeholder="${s.ph ? esc(s.ph[i]) : ''}" aria-label="${s.labels ? s.labels[i] : i + 1 + '번'}"></label>`).join('')}</div>`;
+  } else if (s.t === 'sort') {
+    const src = run.answers[s.from].filter(Boolean);
+    if (a.length !== src.length || a.some((x, i) => x.t !== src[i])) run.answers[run.step] = src.map(t => ({ t, can: (a.find(x => x.t === t) || {}).can ?? null }));
+    const items = run.answers[run.step];
+    input = items.length ? items.map((it, i) => `
+      <div class="sort-item"><span>${esc(it.t)}</span><div class="seg">
+        <button type="button" data-sort="${i}" data-can="1" class="${it.can === true ? 'on' : ''}">할 수 있어요</button>
+        <button type="button" data-sort="${i}" data-can="0" class="${it.can === false ? 'on' : ''}">어쩔 수 없어요</button>
+      </div></div>`).join('') : '<p class="desc">앞에서 적은 걱정이 없어요. 이전으로 돌아가 하나라도 적어 보세요.</p>';
+  } else {
+    input = `<textarea id="ta" rows="${s.big ? 10 : 5}" aria-label="답">${esc(a)}</textarea>`;
+  }
+  return `
+  <button type="button" class="back" data-go="home">← 목록으로</button>
+  <header style="display:flex;flex-direction:column;gap:8px"><h1 style="font-size:1.9rem">${ex.title}</h1>
+    <div class="progress" aria-hidden="true">${run.steps.map((_, i) => `<span class="${i <= run.step ? 'on' : ''}"></span>`).join('')}</div></header>
+  <section class="sk" style="transform:none">
+    <div class="row"><span class="step-label">${ex.build ? `${run.step + 1}번째 질문` : `${run.step + 1} / ${n}`}</span>
+      ${s.swap ? '<button type="button" class="btn ghost" id="swapQ" style="padding:0">다른 질문 받기 ↻</button>' : ''}</div>
+    ${s.swap && s.own ? `<input class="field prompt" id="ownQ" value="${esc(s.p)}" aria-label="내 질문" style="height:auto">` : `<p class="prompt">${esc(s.p)}</p>`}
+    ${s.h ? `<p class="desc" style="margin:0 0 10px">${s.h}</p>` : '<div style="height:10px"></div>'}
+    ${above}${input}
+    ${s.swap && !s.own ? '<button type="button" class="btn ghost" id="ownBtn" style="padding:6px 0 0">내가 나에게 질문 만들기 ✎</button>' : ''}
+  </section>
+  <div class="actions">
+    <button type="button" class="btn" id="prev" ${run.step === 0 ? 'disabled' : ''}>이전</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${ex.build && run.step === n - 1
+        ? '<button type="button" class="btn" id="next">여기서 끝내기</button><button type="button" class="btn primary" id="more">다음 질문 받기</button>'
+        : `<button type="button" class="btn primary" id="next">${run.step === n - 1 ? '책장에 꽂기' : '다음'}</button>`}
+    </div>
+  </div>`;
+}
+function viewIntro(ex) {
+  const resume = run.answers.some(hasAnswer);
+  return `<section class="intro">
+    <button type="button" class="icon-back" data-go="home" aria-label="목록으로">‹</button>
+    <h1>${ex.heading || ex.title}</h1>
+    <p class="big">${ex.intro || ex.desc}</p>
+    <p class="small">${ex.meta || ex.time + ' · 중간에 나가도 이어서 할 수 있어요.'} 다 쓰면 이미지나 PDF로도 저장할 수 있어요.</p>
+    ${[].concat(ex.note || [], ex.notes || []).map(n => `<p class="small">${n}</p>`).join('')}
+    ${resume ? `<p class="small" style="color:var(--ink)">쓰다 만 기록이 있어요 (${run.step + 1} / ${run.steps.length} 단계).</p>
+      <button type="button" class="btn-dark" id="startBtn">이어 쓰기</button>
+      <button type="button" class="btn-dark ghosty" id="restartBtn">처음부터 다시</button>`
+      : '<button type="button" class="btn-dark" id="startBtn">시작하기</button>'}
+  </section>`;
+}
+function viewDone(ex) {
+  return `
+  <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:12px;text-align:center;padding-block:36px">
+    <h1 style="font-size:2rem">다 썼어요</h1>
+    <p class="lead">「${ex.title}」 기록이 책장에 꽂혔어요. 오늘 달력에도 점이 찍혔어요.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px">
+      <button type="button" class="btn" data-go="entry-${run.entryId}">기록 보기 · 이미지/PDF 저장</button>
+      <button type="button" class="btn primary" data-go="home">목록으로</button>
+    </div>
+  </section>`;
+}
+function saveDraft() { if (run && !run.done) store.set('draft:' + run.id, run); }
+function finishRun() {
+  const ex = exById(run.id);
+  const e = { id: 'e' + Date.now(), ex: run.id, title: ex.title, date: today(), at: Date.now(),
+    steps: run.steps.map((s, i) => ({ p: s.p, t: s.t || 'text', labels: s.labels, a: run.answers[i] }))
+      .filter(st => !ex.build || hasAnswer(st.a)) };
+  entries.unshift(e); saveEntries(); store.del('draft:' + run.id);
+  run.done = true; run.entryId = e.id; route();
+}
+function hasAnswer(a) { return Array.isArray(a) ? a.some(x => typeof x === 'string' ? x.trim() : x && x.can !== null) : String(a).trim(); }
+
+// ---------- 나의 지도 ----------
+function countLeaves() { if (!map) return 0; return habitCounts(map).reduce((x, y) => x + y, 0); }
+function habitCounts(m) { return m.habits.map((_, i) => Object.values(m.checks).reduce((n, arr) => n + (arr[i] ? 1 : 0), 0)); }
+const short = (t, n = 9) => t.length > n ? t.slice(0, n) + '…' : t;
+
+// 줄기 하나에 할 것마다 가지 하나. 한 날 했을 때마다 그 가지에 잎이 하나씩 돋아요.
+function treeSVG(habits, counts) {
+  const W = 400, GAP = 120, TOP = 70, n = habits.length;
+  const H = TOP + n * GAP + 70, cx = 200;
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const wob = () => (rnd() - .5) * 3;
+  // 줄기: 손으로 그은 듯한 두 줄
+  const trunkTop = TOP + 30;
+  let svg = `<path d="M${cx - 9} ${H - 30} C${cx - 7 + wob()} ${H * .6} ${cx - 5 + wob()} ${H * .35} ${cx - 2} ${trunkTop}" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M${cx + 9} ${H - 30} C${cx + 7 + wob()} ${H * .6} ${cx + 6 + wob()} ${H * .35} ${cx + 3} ${trunkTop + 6}" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M${cx - 70} ${H - 28} Q${cx} ${H - 36} ${cx + 70} ${H - 27}" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round"/>`;
+  habits.forEach((h, i) => {
+    const left = i % 2 === 0, dir = left ? -1 : 1;
+    const y0 = trunkTop + 40 + i * GAP;
+    const c = counts[i], L = Math.min(165, 120 + Math.min(c, 30) * 1.6);
+    const x0 = cx + dir * 6, x2 = cx + dir * L, y2 = y0 - 62;
+    const x1 = cx + dir * L * .45, y1 = y0 - 8 + (left ? 10 : -4);
+    const P = t => [(1 - t) ** 2 * x0 + 2 * (1 - t) * t * x1 + t * t * x2, (1 - t) ** 2 * y0 + 2 * (1 - t) * t * y1 + t * t * y2];
+    const T = t => [2 * (1 - t) * (x1 - x0) + 2 * t * (x2 - x1), 2 * (1 - t) * (y1 - y0) + 2 * t * (y2 - y1)];
+    svg += `<path d="M${x0} ${y0} Q${x1} ${y1} ${x2} ${y2}" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>`;
+    const show = Math.min(c, 30);
+    for (let k = 0; k < show; k++) {
+      const t = .18 + (.8 * (k + .5)) / Math.max(show, 6);
+      const [px, py] = P(Math.min(t, .97)), [tx, ty] = T(t);
+      const len = Math.hypot(tx, ty), nx = -ty / len, ny = tx / len;
+      const side = k % 2 ? 1 : -1, off = 9 + rnd() * 3;
+      const lx = px + nx * off * side, ly = py + ny * off * side;
+      const ang = Math.atan2(ty, tx) * 180 / Math.PI + side * 35 * (left ? -1 : 1) + (rnd() - .5) * 14;
+      svg += `<g transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${ang.toFixed(0)})">
+        <ellipse rx="12" ry="6.5" fill="var(--leaf-pale)" stroke="var(--ink)" stroke-width="1.4"/>
+        <path d="M-9 0 L9 0" stroke="var(--leaf)" stroke-width="1.2"/></g>`;
+    }
+    // 이름표는 줄기에 닿지 않게 줄기 바깥쪽에서 시작해요.
+    const lx = cx + dir * 22, anchor = left ? 'end' : 'start';
+    svg += `<text x="${lx}" y="${(y2 - 20).toFixed(0)}" font-size="17" text-anchor="${anchor}">${esc(short(h, 8))} · ${c}</text>`;
+  });
+  return `<svg class="tree" viewBox="0 0 ${W} ${H}" role="img" aria-label="${habits.map((h, i) => `${h} ${counts[i]}번`).join(', ')}">${svg}</svg>`;
+}
+const SAMPLE_MAP = { goal: '6개월 안에 책 한 권 쓰기', habits: ['하루 한 쪽 책 읽기', '주 1회 초고 한 꼭지', '매일 아침 30분 쓰기'], counts: [8, 3, 12] };
+function viewMap() {
+  if (!map || map.editing) {
+    const g = map || { goal: '', habits: ['', '', '', ''] };
+    return `
+    <button type="button" class="back" data-go="home">← 목록으로</button>
+    <header style="display:flex;flex-direction:column;gap:12px"><h1>나의 지도</h1>
+      <p class="lead">목표 하나, 꾸준히 할 것 서너 가지. 한 날 하나씩 잎이 돋아요.</p>
+      ${map ? '' : `<p>목표 하나를 정하고, 그걸 이루려면 꾸준히 할 것을 서너 가지 적어요. 한 날 하나씩 “오늘 했어요”를 누르면 나무에 잎이 돋아요.</p>
+      <p class="step-label">나의 지도는 비밀번호로 잠가 이 휴대폰에만 남아요. 나만 볼 수 있어요.</p>`}</header>
+    ${map ? '' : `<section class="sk" style="transform:none">
+      <p class="map-eyebrow">보기 · 한 달쯤 지난 지도</p><p class="map-goal">${SAMPLE_MAP.goal}</p>
+      ${treeSVG(SAMPLE_MAP.habits, SAMPLE_MAP.counts)}</section>`}
+    <form class="sk" id="mapForm" style="transform:none;display:flex;flex-direction:column;gap:14px">
+      <h2 style="font-size:1.4rem">${map ? '지도 고치기' : '내 지도 그리기'}</h2>
+      <label><span class="prompt" style="display:block;font-size:1.3rem">목표</span>
+        <input class="field" id="mGoal" value="${esc(g.goal)}" placeholder="예: 가벼운 몸으로 봄을 맞기" required></label>
+      <div><span class="prompt" style="display:block;font-size:1.3rem">꾸준히 할 것</span>
+        <div class="list-fields">${[0, 1, 2, 3].map(i => `<label><b>${i + 1}</b><input class="field" id="mH${i}" value="${esc(g.habits[i] || '')}" placeholder="${['아침 물 한 잔', '20분 걷기', '밤 11시 전 화면 끄기', '(비워도 돼요)'][i]}"></label>`).join('')}</div></div>
+      <div class="actions">${map ? '<button type="button" class="btn ghost" id="cancelEdit">그만두기</button>' : '<span></span>'}<button class="btn primary" type="submit">${map ? '고치기' : '나무 심기'}</button></div>
+    </form>`;
+  }
+  const t = today(), checks = map.checks[t] || map.habits.map(() => false);
+  const counts = habitCounts(map), leaves = counts.reduce((x, y) => x + y, 0);
+  const dayKeys = Object.keys(map.checks).filter(k => map.checks[k].some(Boolean)).sort();
+  const since = map.since || dayKeys[0] || t;
+  const days = Math.floor((new Date(t) - new Date(since)) / 864e5) + 1;
+  return `
+  <button type="button" class="back" data-go="home">← 목록으로</button>
+  <header style="display:flex;flex-direction:column;gap:6px"><h1>나의 지도</h1>
+    <p class="lead">한 날 하나씩 “오늘 했어요”를 누르면 그 가지에 잎이 돋아요.</p></header>
+  <section class="sk" style="transform:none">
+    <p class="map-eyebrow">${prettyDate(since)}부터 · ${days}일째 · 잎 ${leaves}장</p>
+    <p class="map-goal">${esc(map.goal)}</p>
+    ${treeSVG(map.habits, counts)}
+  </section>
+  <section class="sk" style="transform:none">
+    <div class="row"><h2 style="font-size:1.4rem">오늘</h2><span class="meta">${prettyDate(t)}</span></div>
+    ${map.habits.map((h, i) => `<div class="habit"><span>${esc(h)} <span class="cnt">· ${counts[i]}번</span></span>
+      <button type="button" class="do-btn ${checks[i] ? 'on' : ''}" data-hb="${i}" aria-pressed="${!!checks[i]}">${checks[i] ? '했어요 ✓' : '오늘 했어요'}</button></div>`).join('')}
+  </section>
+  <div class="actions"><button type="button" class="btn ghost" id="editMap">지도 고치기</button><button type="button" class="btn ghost" id="resetMap">${confirmDel === 'map' ? '정말 새로 시작할까요? 한 번 더 누르면 지워져요' : '새 나무 심기'}</button></div>`;
+}
+
+// ---------- 같이해요 ----------
+const BASE_CATS = ['운동', '명상', '독서', '감사', '감정일기 쓰기'];
+let postCat = '명상', addingCat = false;
+function allCats() {
+  const extra = store.get('cats', []);
+  const fromPosts = posts.map(p => p.cat).filter(c => !BASE_CATS.includes(c) && !extra.includes(c));
+  return [...BASE_CATS, ...extra, ...new Set(fromPosts)];
+}
+const catTitle = c => /(하기|쓰기)$/.test(c) ? `꾸준히 ${c}` : `꾸준히 ${c}하기`;
+function catStats(c) {
+  const mine = posts.filter(p => p.cat === c);
+  const days = new Set(mine.map(p => p.date));
+  let streak = 0; const d = new Date();
+  if (!days.has(dkey(d))) d.setDate(d.getDate() - 1);   // 오늘 아직 안 썼으면 어제부터 셈
+  while (days.has(dkey(d))) { streak++; d.setDate(d.getDate() - 1); }
+  const ym = today().slice(0, 7);
+  return { total: mine.length, days: days.size, streak, month: [...days].filter(k => k.startsWith(ym)).length };
+}
+function viewTogether() {
+  const cats = allCats(); if (!cats.includes(postCat)) postCat = cats[0];
+  const st = catStats(postCat), t = today();
+  const mine = posts.filter(p => p.cat === postCat).sort((a, b) => (b.at || 0) - (a.at || 0));
+  const todays = mine.filter(p => p.date === t), past = mine.filter(p => p.date !== t).slice(0, 30);
+  const custom = store.get('cats', []).includes(postCat);
+  const row = p => `<div class="line-item">
+      <span class="who"><b>나</b> · ${p.date === t ? new Date(p.at).toTimeString().slice(0, 5) : prettyDate(p.date)}</span>
+      <button type="button" class="heart ${p.liked ? 'on' : ''}" data-like="${p.id}" aria-pressed="${!!p.liked}" aria-label="마음에 남기기">${p.liked ? '♥' : '♡'}</button>
+      <span class="txt">${esc(p.text)}</span>
+      <button type="button" class="del" data-delpost="${p.id}">${confirmDel === p.id ? '정말 지울까요? 한 번 더' : '지우기'}</button>
+    </div>`;
+  return `
+  <header style="display:flex;flex-direction:column;gap:8px"><h1>같이해요!</h1>
+    <p class="lead">하루에 한 줄, 아무 때나 남기며 이어 가요.</p></header>
+  <div class="chips-row">
+    ${cats.map(c => `<button type="button" class="cat-chip ${c === postCat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}
+    ${addingCat ? `<form id="catForm" style="display:flex;gap:8px"><input class="field" id="catName" maxlength="12" placeholder="예: 물 마시기" aria-label="새 칸 이름" style="width:9em"><button class="cat-chip" type="submit">추가</button></form>`
+      : '<button type="button" class="cat-chip add" id="addCat" aria-label="칸 추가">+ 추가</button>'}
+  </div>
+  <form class="sk t-card" id="postForm" style="transform:none">
+    <h2 style="font-size:1.5rem"><span class="hl">${esc(catTitle(postCat))}</span></h2>
+    <input class="field" id="postText" maxlength="80" placeholder="오늘의 한 줄 (80자까지)" aria-label="오늘의 한 줄">
+    <button class="btn-dark" type="submit">한 줄 남기기</button>
+    <div class="t-foot">
+      <span>🏅 누적 ${st.total} · 연속 ${st.streak}일 · 이번 달 ${st.month}일</span>
+      ${custom ? `<button type="button" id="rmCat">${confirmDel === 'cat' ? '이 칸을 뺄까요? 한 번 더' : '이 칸 빼기'}</button>` : ''}
+    </div>
+  </form>
+  <section>
+    <div class="sec-head"><h2>오늘 쓴 한 줄</h2><span class="meta">${todays.length}줄</span></div>
+    ${todays.map(row).join('') || '<p class="empty">오늘은 아직 남긴 한 줄이 없어요.</p>'}
+  </section>
+  ${past.length ? `<section><div class="sec-head"><h2 style="font-size:1.4rem">지난 한 줄</h2><span class="meta">${st.days}일 동안</span></div>${past.map(row).join('')}</section>` : ''}
+  <button type="button" class="side-nav l" data-go="home"><i>‹</i>대화하기</button>
+  <button type="button" class="side-nav r" data-go="calendar">일정<i>›</i></button>`;
+}
+
+// ---------- 일정 ----------
+function dayHas(k) { return entries.some(e => e.date === k) || (map && map.checks[k] && map.checks[k].some(Boolean)) || posts.some(p => p.date === k && !p.sample); }
+function viewCalendar() {
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  const first = new Date(y, m, 1).getDay(), last = new Date(y, m + 1, 0).getDate();
+  let cells = ['일', '월', '화', '수', '목', '금', '토'].map(d => `<span class="dow">${d}</span>`).join('');
+  for (let i = 0; i < first; i++) cells += '<span></span>';
+  for (let d = 1; d <= last; d++) {
+    const k = `${y}-${pad(m + 1)}-${pad(d)}`;
+    cells += `<button type="button" data-day="${k}" class="${dayHas(k) ? 'has' : ''} ${k === today() ? 'today' : ''} ${k === calSel ? 'sel' : ''}" aria-label="${prettyDate(k)}">${d}</button>`;
+  }
+  const dayEntries = entries.filter(e => e.date === calSel);
+  const dayChecks = map && map.checks[calSel] ? map.habits.filter((_, i) => map.checks[calSel][i]) : [];
+  const dayPosts = posts.filter(p => p.date === calSel && !p.sample);
+  const empty = !dayEntries.length && !dayChecks.length && !dayPosts.length;
+  return `
+  <header style="display:flex;flex-direction:column;gap:8px"><h1>일정</h1><p class="lead">점이 찍힌 날은 마음을 들여다본 날이에요.</p></header>
+  <section class="sk" style="transform:none">
+    <div class="row" style="align-items:center;margin-bottom:10px">
+      <button type="button" class="btn ghost" id="mPrev" aria-label="이전 달">‹</button>
+      <h2 style="font-size:1.5rem">${y}년 ${m + 1}월</h2>
+      <button type="button" class="btn ghost" id="mNext" aria-label="다음 달">›</button></div>
+    <div class="cal">${cells}</div>
+  </section>
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <h2 style="font-size:1.4rem">${prettyDate(calSel)}</h2>
+    ${dayEntries.map(e => `<button type="button" class="sk" data-go="entry-${e.id}"><span class="card-title" style="font-size:1.1rem">${esc(e.title)}</span><p class="desc">${esc(firstLine(e))}</p></button>`).join('')}
+    ${dayChecks.length ? `<p>🌿 나의 지도: ${dayChecks.map(esc).join(', ')}</p>` : ''}
+    ${dayPosts.map(p => `<p>✎ ${esc(p.text)} <small class="step-label">(${p.cat})</small></p>`).join('')}
+    ${empty ? '<p class="empty">이날은 남긴 기록이 없어요.</p>' : ''}
+  </section>`;
+}
+
+// ---------- 책장 ----------
+function firstLine(e) {
+  for (const s of e.steps) {
+    const a = s.a;
+    if (typeof a === 'string' && a.trim()) return a.trim().split('\n')[0].slice(0, 70);
+    if (Array.isArray(a)) { const f = a.find(x => typeof x === 'string' ? x.trim() : x && x.t); if (f) return (typeof f === 'string' ? f : f.t).slice(0, 70); }
+  }
+  return '(빈 기록)';
+}
+function viewShelf() {
+  const sample = !entries.length;
+  const list = sample ? [SAMPLE_ENTRY] : entries;
+  return `
+  <header style="display:flex;flex-direction:column;gap:8px"><h1>책장</h1>
+    <p class="lead">${sample ? '아직 꽂힌 기록이 없어요. 아래는 예시예요. 대화하기에서 카드를 하나 골라 써 보세요.' : `기록 ${entries.length}권. 비밀번호로 잠가 이 휴대폰에만 저장해 두었어요.`}</p>
+    <div class="tools"><button type="button" class="btn" id="lockNow">지금 잠그기</button><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label><button type="button" class="btn ghost" data-go="security">비밀번호 바꾸기</button></div>
+    <input type="file" id="restoreFile2" accept=".json,application/json" hidden>
+    <p class="step-label">${lastBackupText()} · 휴대폰을 바꾸거나 앱을 지우면 기록도 사라지니, 가끔 백업 파일을 저장해 두세요.</p></header>
+  <div class="list">${list.map(e => `
+    <button type="button" class="sk" data-go="entry-${e.id}">
+      <div class="row"><span class="card-title" style="font-size:1.15rem">${esc(e.title)}</span><span class="meta">${sample ? '<span class="pill">예시</span>' : ''}${prettyDate(e.date)}</span></div>
+      <p class="desc">${esc(firstLine(e))}</p></button>`).join('')}</div>`;
+}
+const SAMPLE_ENTRY = { id: 'sample', ex: 'thanks', title: '감사 세 줄', date: today(), sample: true, steps: [
+  { p: '오늘 고마웠던 일 세 가지', t: 'list', a: ['아침 버스를 기사님이 기다려 주셨다', '동생이 반찬을 보내 줬다', '비가 그치고 해가 났다'] },
+  { p: '그중 하나가 고마웠던 이유는?', t: 'text', a: '뛰어오는 나를 보고 문을 다시 열어 주셨다. 하루가 덜 급하게 시작됐다.' }] };
+function renderAnswer(s) {
+  const a = s.a;
+  if (s.t === 'sort') {
+    const can = a.filter(x => x.can === true), no = a.filter(x => x.can === false);
+    const col = (t, xs) => `<div><h4 style="font-size:1rem">${t}</h4><ul>${xs.map(x => `<li>${esc(x.t)}</li>`).join('') || '<li>-</li>'}</ul></div>`;
+    return `<div class="two">${col('할 수 있는 것', can)}${col('어쩔 수 없는 것', no)}</div>`;
+  }
+  if (Array.isArray(a)) { const xs = a.map((x, i) => [x, i]).filter(([x]) => x.trim()); return xs.length ? `<ul>${xs.map(([x, i]) => `<li>${s.labels ? `<b>${esc(s.labels[i])}</b> ` : ''}${esc(x)}</li>`).join('')}</ul>` : '<p class="step-label">(비워 둠)</p>'; }
+  return a.trim() ? `<p>${esc(a)}</p>` : '<p class="step-label">(비워 둠)</p>';
+}
+function viewEntry(id) {
+  const e = id === 'sample' ? SAMPLE_ENTRY : entries.find(x => x.id === id);
+  if (!e) return `<button type="button" class="back" data-go="shelf">← 책장으로</button><p class="empty">이 기록을 찾을 수 없어요.</p>`;
+  return `
+  <button type="button" class="back" data-go="shelf">← 책장으로</button>
+  <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)}</h1><p class="lead">${prettyDate(e.date)}${e.sample ? ' · 예시' : ''}</p></header>
+  <article class="sk entry-body" style="transform:none">${e.steps.map(s => `<div><h4>${esc(s.p)}</h4>${renderAnswer(s)}</div>`).join('')}</article>
+  ${e.sample ? '' : `<div class="actions"><div class="tools"><button type="button" class="btn" id="imgE">이미지로 저장</button><button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
+}
+// 기록 한 편을 공책 한 장 같은 이미지(PNG)로 만들어 저장해요.
+async function saveEntryImage(e) {
+  try { await document.fonts.ready; } catch (_) {}
+  const W = 1080, PAD = 90, LINE = 50, cs = getComputedStyle(document.documentElement);
+  const col = n => cs.getPropertyValue(n).trim();
+  const paper = '#fbfaf7', ink = '#2b2a27', soft = '#6b6862', rule = '#e2dfd6', mark = '#f3e49b';
+  const hand = '"Gaegu", "Gowun Dodum", sans-serif', body = '"Gowun Dodum", "Noto Sans KR", sans-serif';
+  const c = document.createElement('canvas'), x = c.getContext('2d');
+  const wrap = (text, font, maxW) => {
+    x.font = font; const out = [];
+    String(text).split('\n').forEach(par => {
+      let line = '';
+      for (const ch of par) { if (x.measureText(line + ch).width > maxW && line) { out.push(line); line = ch.trimStart(); } else line += ch; }
+      out.push(line);
+    });
+    return out;
+  };
+  const blocks = e.steps.map(s => {
+    let lines = [];
+    const a = s.a;
+    if (s.t === 'sort') {
+      lines = [...a.filter(i => i.can === true).map(i => '○ 할 수 있어요 · ' + i.t), ...a.filter(i => i.can === false).map(i => '× 어쩔 수 없어요 · ' + i.t)];
+    } else if (Array.isArray(a)) lines = a.map((v, i) => [v, i]).filter(([v]) => v.trim()).map(([v, i]) => '· ' + (s.labels ? s.labels[i] + ' ' : '') + v);
+    else lines = a.trim() ? [a.trim()] : [];
+    if (!lines.length) lines = ['(비워 둠)'];
+    const body28 = `28px ${body}`, q = wrap(s.p, `bold 30px ${body}`, W - PAD * 2);
+    const ans = lines.flatMap(l => wrap(l, body28, W - PAD * 2));
+    return { q, ans };
+  });
+  const titleLines = wrap(e.title, `bold 64px ${hand}`, W - PAD * 2);
+  let H = PAD + titleLines.length * 72 + 70;
+  blocks.forEach(b => { H += b.q.length * 44 + 12 + b.ans.length * LINE + 40; });
+  H += 80;
+  const scale = 1; c.width = W * scale; c.height = H * scale;
+  x.fillStyle = paper; x.fillRect(0, 0, W, H);
+  x.strokeStyle = ink; x.lineWidth = 4; x.strokeRect(30, 30, W - 60, H - 60);
+  let y = PAD;
+  x.textBaseline = 'top';
+  x.fillStyle = mark; x.fillRect(PAD - 10, y + 40, Math.min(W - PAD * 2, x.measureText(titleLines[0]).width + 20), 26);
+  x.fillStyle = ink; x.font = `bold 64px ${hand}`;
+  titleLines.forEach(l => { x.fillText(l, PAD, y); y += 72; });
+  x.fillStyle = soft; x.font = `26px ${body}`; x.fillText(prettyDate(e.date) + ' · 마음 공책', PAD, y + 4); y += 70;
+  blocks.forEach(b => {
+    x.fillStyle = ink; x.font = `bold 30px ${body}`; b.q.forEach(l => { x.fillText(l, PAD, y); y += 44; }); y += 12;
+    x.font = `28px ${body}`;
+    b.ans.forEach(l => { x.fillStyle = rule; x.fillRect(PAD, y + LINE - 6, W - PAD * 2, 2); x.fillStyle = ink; x.fillText(l, PAD, y + 6); y += LINE; });
+    y += 40;
+  });
+  c.toBlob(blob => {
+    if (!blob) return toast('이미지를 만들지 못했어요');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `마음공책-${e.title.replace(/\s+/g, '')}-${e.date}.png`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('이미지를 저장했어요 (다운로드 폴더)');
+  }, 'image/png');
+}
+function entryText(e) {
+  return `${e.title} (${prettyDate(e.date)})\n\n` + e.steps.map(s => {
+    const a = s.a; let body;
+    if (s.t === 'sort') body = a.map(x => `- ${x.t} [${x.can === true ? '할 수 있음' : x.can === false ? '어쩔 수 없음' : '-'}]`).join('\n');
+    else if (Array.isArray(a)) body = a.filter(x => x.trim()).map(x => '- ' + x).join('\n');
+    else body = a;
+    return `■ ${s.p}\n${body || '(비워 둠)'}`;
+  }).join('\n\n');
+}
+
+// ---------- 이벤트 ----------
+function afterRender(h) {
+  const $ = id => document.getElementById(id);
+  if (h === 'home' || h === '') {
+    const q = $('q'); if (q) q.oninput = () => { query = q.value; const pos = q.selectionStart; route(); const nq = $('q'); nq.focus(); nq.setSelectionRange(pos, pos); };
+  }
+  if (h.startsWith('ex-') && run && !run.done && !run.started) {
+    $('startBtn').onclick = () => { run.started = true; saveDraft(); route(); window.scrollTo(0, 0); };
+    if ($('restartBtn')) $('restartBtn').onclick = () => { store.del('draft:' + run.id); run = startRun(run.id); run.started = true; route(); };
+  } else if (h.startsWith('ex-') && run && !run.done) {
+    const s = run.steps[run.step];
+    const ta = $('ta'); if (ta) ta.oninput = () => { run.answers[run.step] = ta.value; saveDraft(); };
+    document.querySelectorAll('[data-li]').forEach(inp => inp.oninput = () => { run.answers[run.step][+inp.dataset.li] = inp.value; saveDraft(); });
+    document.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { run.answers[run.step][+b.dataset.sort].can = b.dataset.can === '1'; saveDraft(); route(); });
+    const own = $('ownQ'); if (own) own.oninput = () => { s.p = own.value; saveDraft(); };
+    if ($('swapQ')) $('swapQ').onclick = () => {
+      const used = run.steps.map(x => x.p); const pick = shuffle(QUESTION_POOL.filter(p => !used.includes(p)))[0];
+      if (pick) { s.p = pick; s.own = false; saveDraft(); route(); }
+    };
+    if ($('ownBtn')) $('ownBtn').onclick = () => { s.own = true; s.p = ''; saveDraft(); route(); $('ownQ').focus(); };
+    $('prev').onclick = () => { run.step--; saveDraft(); route(); };
+    $('next').onclick = () => {
+      if (run.step < run.steps.length - 1) { run.step++; saveDraft(); route(); window.scrollTo(0, 0); }
+      else if (!run.answers.some(hasAnswer)) toast('한 칸이라도 적으면 책장에 꽂을 수 있어요');
+      else finishRun();
+    };
+    if ($('more')) $('more').onclick = () => {
+      const used = run.steps.map(x => x.p); const pick = shuffle(QUESTION_POOL.filter(p => !used.includes(p)))[0] || '지금 떠오르는 질문을 직접 적어 보세요.';
+      run.steps.push({ p: pick, swap: true }); run.answers.push(''); run.step++; saveDraft(); route();
+    };
+    if (ta && !ta.value) ta.focus();
+  }
+  if (h.startsWith('ex-') && run && run.done) { /* 완료 화면: 다음 진입 시 새로 시작 */ const r = run; setTimeout(() => { if (run === r) run = null; }, 0); }
+  if (h === 'map') {
+    const f = $('mapForm');
+    if (f) f.onsubmit = ev => {
+      ev.preventDefault();
+      const habits = [0, 1, 2, 3].map(i => $('mH' + i).value.trim()).filter(Boolean);
+      if (!habits.length) { toast('꾸준히 할 것을 하나 이상 적어 주세요'); return; }
+      const old = map && map.checks || {};
+      const was = !!map;
+      map = { goal: $('mGoal').value.trim(), habits, checks: old, since: (map && map.since) || today() }; saveMap(); toast(was ? '지도를 고쳤어요' : '나무를 심었어요'); route();
+    };
+    document.querySelectorAll('[data-hb]').forEach(b => b.onclick = () => {
+      const t = today(), i = +b.dataset.hb; map.checks[t] = map.checks[t] || map.habits.map(() => false);
+      map.checks[t][i] = !map.checks[t][i]; saveMap();
+      if (map.checks[t][i]) toast('잎이 하나 돋았어요'); route();
+    });
+    if ($('cancelEdit')) $('cancelEdit').onclick = () => route();
+    if ($('editMap')) $('editMap').onclick = () => { map.editing = true; route(); map.editing = false; };
+    if ($('resetMap')) $('resetMap').onclick = () => {
+      if (confirmDel === 'map') { map = null; store.del('map'); confirmDel = null; } else confirmDel = 'map'; route();
+    };
+  }
+  if (h === 'together') {
+    document.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { postCat = b.dataset.cat; addingCat = false; confirmDel = null; route(); });
+    if ($('addCat')) $('addCat').onclick = () => { addingCat = true; route(); $('catName').focus(); };
+    if ($('catForm')) $('catForm').onsubmit = ev => {
+      ev.preventDefault(); const n = $('catName').value.trim(); addingCat = false;
+      if (n && !allCats().includes(n)) { store.set('cats', [...store.get('cats', []), n]); postCat = n; toast(`「${n}」 칸을 만들었어요`); }
+      else if (n) postCat = n;
+      route();
+    };
+    if ($('rmCat')) $('rmCat').onclick = () => {
+      if (confirmDel !== 'cat') { confirmDel = 'cat'; return route(); }
+      store.set('cats', store.get('cats', []).filter(c => c !== postCat)); confirmDel = null; postCat = BASE_CATS[0]; route();
+    };
+    document.querySelectorAll('[data-like]').forEach(b => b.onclick = () => { const p = posts.find(x => x.id === b.dataset.like); p.liked = !p.liked; savePosts(); route(); });
+    document.querySelectorAll('[data-delpost]').forEach(b => b.onclick = () => {
+      const id = b.dataset.delpost;
+      if (confirmDel !== id) { confirmDel = id; return route(); }
+      posts = posts.filter(x => x.id !== id); confirmDel = null; savePosts(); toast('지웠어요'); route();
+    });
+    $('postForm').onsubmit = ev => {
+      ev.preventDefault(); const t = $('postText').value.trim(); if (!t) { $('postText').focus(); return; }
+      posts = posts.concat({ id: 'p' + Date.now(), cat: postCat, text: t, date: today(), at: Date.now() });
+      confirmDel = null; savePosts(); toast('한 줄 남겼어요'); route();
+    };
+  }
+  if (h === 'calendar') {
+    document.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { calSel = b.dataset.day; route(); });
+    $('mPrev').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); route(); };
+    $('mNext').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); route(); };
+  }
+  if (h === 'shelf' && $('lockNow')) { $('lockNow').onclick = lockApp; $('backupNow').onclick = downloadBackup; $('restoreFile2').onchange = () => restoreFrom($('restoreFile2').files[0]); }
+  if (h.startsWith('entry-')) {
+    const id = h.slice(6), e = entries.find(x => x.id === id);
+    if ($('delE')) $('delE').onclick = () => {
+      if (confirmDel === id) { entries = entries.filter(x => x.id !== id); saveEntries(); confirmDel = null; toast('지웠어요'); go('shelf'); }
+      else { confirmDel = id; route(); }
+    };
+    if ($('imgE')) $('imgE').onclick = () => saveEntryImage(e);
+    if ($('pdfE')) $('pdfE').onclick = () => { toast('인쇄 화면에서 대상을 "PDF로 저장"으로 고르세요'); setTimeout(() => window.print(), 400); };
+    if ($('copyE')) $('copyE').onclick = () => {
+      navigator.clipboard.writeText(entryText(e)).then(() => toast('복사했어요'), () => toast('복사가 막혀 있어요. 직접 선택해서 복사해 주세요'));
+    };
+  }
+  if (!h.startsWith('entry-') && h !== 'map' && h !== 'together') confirmDel = null;
+}
+document.addEventListener('click', ev => {
+  const g = ev.target.closest('[data-go]'); if (!g) return;
+  const to = g.dataset.go; if (to.startsWith('ex-') && run && run.done) run = null;
+  if (to.startsWith('ex-') && run) run.started = false;  // 카드를 누르면 늘 소개 화면부터
+  confirmDel = null; go(to);
+});
+document.getElementById('sideGo').onclick = () => go('together');
+window.addEventListener('hashchange', route);
+// ---------- 잠금 ----------
+let lockMode = 'loading', lockErr = '', fails = 0, waitUntil = 0;
+function loadState() {
+  entries = store.get('entries', []);
+  map = store.get('map', null);
+  posts = store.get('posts', null) || SAMPLE_POSTS;
+}
+function viewLock() {
+  const logo = '<img class="lock-logo" src="./icon-192.png" alt="">';
+  if (lockMode === 'loading') return `<div class="lock">${logo}<p class="lead">여는 중…</p></div>`;
+  if (lockMode === 'nostore') return `<div class="lock">${logo}<h1>마음 공책</h1>
+    <p class="lead">이 브라우저에서는 기록을 저장할 수 없어요. 시크릿 창이라면 일반 창에서 열어 주세요.</p></div>`;
+  if (lockMode === 'setup') return `<div class="lock">${logo}<h1>마음 공책</h1>
+    <p class="lead">나만 열 수 있게 비밀번호를 정해요.</p>
+    <form id="lockForm" class="sk" style="transform:none">
+      <label>비밀번호 (4자 이상)<input class="field" id="pw1" type="password" autocomplete="new-password" minlength="4" required autofocus></label>
+      <label>한 번 더<input class="field" id="pw2" type="password" autocomplete="new-password" minlength="4" required></label>
+      <p class="warn">기록은 이 비밀번호로 암호화돼요. 잊어버리면 아무도(저도) 기록을 되살릴 수 없으니 꼭 기억해 두세요.</p>
+      <p class="err" id="lockErr">${esc(lockErr)}</p>
+      <button class="btn primary" type="submit">시작하기</button>
+    </form>
+    <div class="tools" style="justify-content:center"><label class="btn ghost" for="restoreFile">백업 파일로 시작하기</label></div>
+    <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+    ${installBtn()}</div>`;
+  return `<div class="lock">${logo}<h1>마음 공책</h1>
+    <form id="lockForm" class="sk" style="transform:none">
+      <label>비밀번호<input class="field" id="pw1" type="password" autocomplete="current-password" required autofocus></label>
+      <p class="err" id="lockErr">${esc(lockErr)}</p>
+      <button class="btn primary" type="submit">열기</button>
+    </form>${installBtn()}</div>`;
+}
+function afterLock() {
+  bindInstall();
+  const rf = document.getElementById('restoreFile');
+  if (rf) rf.onchange = () => restoreFrom(rf.files[0]);
+  const f = document.getElementById('lockForm'); if (!f) return;
+  const pw1 = document.getElementById('pw1'); pw1.focus();
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const btn = f.querySelector('button[type=submit]'), errEl = document.getElementById('lockErr');
+    const showErr = m => { lockErr = m; errEl.textContent = m; };
+    if (Date.now() < waitUntil) return showErr(`잠시 뒤에 다시 해 주세요 (${Math.ceil((waitUntil - Date.now()) / 1000)}초)`);
+    btn.disabled = true; btn.textContent = '여는 중…';
+    try {
+      if (lockMode === 'setup') {
+        const pw2 = document.getElementById('pw2').value;
+        if (pw1.value.length < 4) throw '4자 이상으로 정해 주세요';
+        if (pw1.value !== pw2) throw '두 비밀번호가 달라요';
+        SALT = crypto.getRandomValues(new Uint8Array(16));
+        KEY = await deriveKey(pw1.value, SALT);
+        DB = RAW && !RAW.ct ? RAW : {};   // 잠금 전 버전에서 쓴 기록은 그대로 옮겨 암호화
+        await saveNow();
+      } else {
+        const salt = unb64(RAW.salt), key = await deriveKey(pw1.value, salt);
+        try { DB = await openBox(RAW, key); } catch (e) {
+          fails++; if (fails >= 5) { waitUntil = Date.now() + 30000; fails = 0; }
+          throw '비밀번호가 맞지 않아요';
+        }
+        SALT = salt; KEY = key; fails = 0;
+      }
+      lockErr = ''; loadState(); touch(); route();
+    } catch (m) {
+      KEY = null; btn.disabled = false; btn.textContent = lockMode === 'setup' ? '시작하기' : '열기';
+      showErr(typeof m === 'string' ? m : '열지 못했어요. 프로그램을 껐다 켜 주세요'); pw1.select();
+    }
+  };
+}
+async function lockApp() {
+  clearTimeout(saveTimer); await saveNow();
+  KEY = null; SALT = null; DB = {}; entries = []; map = null; posts = SAMPLE_POSTS; run = null; query = '';
+  lockMode = 'unlock'; lockErr = ''; route();
+}
+// 5분 동안 손대지 않으면 자동으로 잠급니다.
+const IDLE_MS = 5 * 60 * 1000; let lastTouch = Date.now();
+function touch() { lastTouch = Date.now(); }
+['pointerdown', 'keydown', 'scroll'].forEach(t => window.addEventListener(t, touch, { passive: true }));
+setInterval(() => { if (KEY && Date.now() - lastTouch > IDLE_MS) lockApp(); }, 15000);
+
+function viewSecurity() {
+  return `<button type="button" class="back" data-go="shelf">← 책장으로</button>
+  <header style="display:flex;flex-direction:column;gap:8px"><h1>비밀번호 바꾸기</h1>
+    <p class="lead">새 비밀번호로 기록 전체를 다시 잠가요.</p></header>
+  <form id="secForm" class="sk" style="transform:none;display:flex;flex-direction:column;gap:14px">
+    <label>지금 비밀번호<input class="field" id="sp0" type="password" autocomplete="current-password" required></label>
+    <label>새 비밀번호 (4자 이상)<input class="field" id="sp1" type="password" autocomplete="new-password" minlength="4" required></label>
+    <label>새 비밀번호 한 번 더<input class="field" id="sp2" type="password" autocomplete="new-password" minlength="4" required></label>
+    <p class="err" id="secErr" style="color:#b4472f;min-height:1.4em"></p>
+    <div class="actions"><span></span><button class="btn primary" type="submit">바꾸기</button></div>
+  </form>`;
+}
+function afterSecurity() {
+  const f = document.getElementById('secForm'), err = document.getElementById('secErr');
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const [a, b, c] = ['sp0', 'sp1', 'sp2'].map(id => document.getElementById(id).value);
+    if (b.length < 4) { err.textContent = '새 비밀번호는 4자 이상으로 정해 주세요'; return; }
+    if (b !== c) { err.textContent = '새 비밀번호 두 개가 달라요'; return; }
+    try { await saveNow(); await openBox(RAW, await deriveKey(a, SALT)); } catch (e) { err.textContent = '지금 비밀번호가 맞지 않아요'; return; }
+    SALT = crypto.getRandomValues(new Uint8Array(16)); KEY = await deriveKey(b, SALT);
+    await saveNow(); toast('비밀번호를 바꿨어요'); go('shelf');
+  };
+}
+
+// ---------- 백업 ----------
+function backupName() { return `maeum-notebook-backup-${today()}.json`; }
+async function downloadBackup() {
+  clearTimeout(saveTimer); await saveNow();
+  const blob = new Blob([JSON.stringify(RAW)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = backupName();
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  try { localStorage.setItem('maeum-notebook:lastBackup', today()); } catch (e) {}
+  toast('백업 파일을 저장했어요 (다운로드 폴더)');
+}
+async function restoreFrom(file) {
+  if (!file) return;
+  try {
+    const box = JSON.parse(await file.text());
+    if (!box || !box.ct || !box.salt || !box.iv) throw 0;
+    if (KEY) { clearTimeout(saveTimer); await saveNow(); }
+    writeBox(box); RAW = box;
+    KEY = null; SALT = null; DB = {}; entries = []; map = null; posts = SAMPLE_POSTS; run = null;
+    lockMode = 'unlock'; lockErr = '백업을 불러왔어요. 백업할 때의 비밀번호로 열어 주세요.'; go('home'); route();
+  } catch (e) { toast('마음 공책 백업 파일이 아니에요'); }
+}
+function lastBackupText() {
+  let d = null; try { d = localStorage.getItem('maeum-notebook:lastBackup'); } catch (e) {}
+  return d ? `마지막 백업 ${prettyDate(d)}` : '아직 백업한 적이 없어요';
+}
+
+// ---------- 홈 화면에 설치 ----------
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!KEY) route(); });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('홈 화면에 설치했어요'); });
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+function installBtn() {
+  if (standalone()) return '';
+  if (installEvt) return '<button type="button" class="btn" id="installBtn">홈 화면에 앱으로 설치</button>';
+  return '<p class="warn">브라우저 메뉴(⋮)에서 <b>홈 화면에 추가</b>나 <b>앱 설치</b>를 누르면 앱처럼 쓸 수 있어요.</p>';
+}
+function bindInstall() {
+  const b = document.getElementById('installBtn');
+  if (b) b.onclick = async () => { installEvt.prompt(); await installEvt.userChoice; installEvt = null; route(); };
+}
+
+(async function boot() {
+  try { localStorage.setItem('maeum-notebook:probe', '1'); localStorage.removeItem('maeum-notebook:probe'); RAW = readBox(); lockMode = RAW && RAW.ct ? 'unlock' : 'setup'; }
+  catch (e) { lockMode = 'nostore'; }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  route();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+})();
+</script>
+
+</body>
+</html>

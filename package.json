@@ -1,0 +1,9 @@
+{
+  "name": "maeum-notebook",
+  "private": true,
+  "version": "0.2.0",
+  "description": "질문을 따라 쓰는 나만의 마음 일기 (휴대폰 앱)",
+  "scripts": {
+    "start": "npx --yes serve -l 5180 ."
+  }
+}
