@@ -134,6 +134,7 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .tb-half > .sk { padding: 16px 14px; min-width: 0; }
 .tb-half .habit { gap: 8px; padding: 8px 0; }
 .tb-half .field { min-width: 0; }
+.tb-half .habit input[data-rename] { flex: 1 1 auto; width: auto; min-width: 0; }
 .tb-memo { flex: 1; min-height: 9.5em; resize: vertical; }
 .tb-range { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--ink-soft); font-size: .9rem; }
 .tb-range select { font: inherit; color: var(--ink); background: var(--card); border: 1.5px solid var(--line); border-radius: 8px; padding: 2px 6px; }
@@ -800,9 +801,9 @@ function viewTimebox() {
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
     <div class="row"><h2 style="font-size:1.3rem">매일 체크리스트</h2>
       <button type="button" class="btn ghost" id="tbListEdit" style="padding:0;font-size:.85rem">${tbListEdit ? '다 고쳤어요' : '항목 고치기'}</button></div>
-    ${tbListEdit ? `<div class="tb-top">${tbList().map((n, i) => `<div class="habit"><span>${esc(n)}</span><button type="button" class="btn ghost" data-rmcheck="${i}" style="padding:0 6px;margin-left:auto">빼기 ✕</button></div>`).join('')}</div>
+    ${tbListEdit ? `<div class="tb-top">${tbList().map((n, i) => `<div class="habit"><input class="field" data-rename="${i}" value="${esc(n)}" aria-label="${i + 1}번 항목 이름" autocomplete="off"><button type="button" class="btn ghost" data-rmcheck="${i}" style="padding:0 4px;flex:none" aria-label="${esc(n)} 빼기">✕</button></div>`).join('')}</div>
       <form id="addCheckForm" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="field" id="newCheck" placeholder="예: 절 108배" autocomplete="off"><button class="btn" type="submit">추가</button></form>
-      <p class="step-label">여기서 고친 목록은 모든 날에 똑같이 나와요.</p>`
+      <p class="step-label">글자를 눌러 바로 고칠 수 있어요. 고친 목록은 모든 날에 똑같이 나와요.</p>`
     : tbList().length ? tbList().map(n => `<label class="habit"><input type="checkbox" class="tb-check" data-check="${esc(n)}" ${d.checks[n] ? 'checked' : ''}><span style="${d.checks[n] ? 'text-decoration:line-through;color:var(--ink-soft)' : ''}">${esc(n)}</span></label>`).join('')
     : '<p class="step-label">항목 고치기를 눌러 날마다 할 일을 넣어 보세요.</p>'}
   </section>
@@ -834,7 +835,17 @@ function afterTimebox() {
   $('tbListEdit').onclick = () => { tbListEdit = !tbListEdit; route(); };
   document.querySelectorAll('[data-check]').forEach(cb => cb.onchange = () => { upd(d => { d.checks[cb.dataset.check] = cb.checked; }); route(); });
   document.querySelectorAll('[data-rmcheck]').forEach(b => b.onclick = () => { const l = tbList(); l.splice(+b.dataset.rmcheck, 1); store.set('tbChecklist', l); route(); });
-  if ($('addCheckForm')) { $('newCheck').focus(); $('addCheckForm').onsubmit = ev => { ev.preventDefault(); const n = $('newCheck').value.trim(); if (!n) return; const l = tbList(); if (!l.includes(n)) l.push(n); store.set('tbChecklist', l); route(); }; }
+  document.querySelectorAll('[data-rename]').forEach(inp => inp.onchange = () => {
+    const i = +inp.dataset.rename, l = tbList(), old = l[i], nu = inp.value.trim();
+    if (!nu || nu === old) { inp.value = old; return; }
+    if (l.includes(nu)) { toast('이미 있는 항목이에요'); inp.value = old; return; }
+    l[i] = nu; store.set('tbChecklist', l);
+    const all = tbAll();   // 지난 날 체크도 새 이름으로 옮겨요
+    for (const d of Object.values(all)) if (d.checks && old in d.checks) { d.checks[nu] = d.checks[old]; delete d.checks[old]; d.mod = Date.now(); }
+    store.set('timebox', all); toast('고쳤어요');
+  });
+  document.querySelectorAll('[data-rename]').forEach(inp => inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+  if ($('addCheckForm')) { $('addCheckForm').onsubmit = ev => { ev.preventDefault(); const n = $('newCheck').value.trim(); if (!n) return; const l = tbList(); if (!l.includes(n)) l.push(n); store.set('tbChecklist', l); route(); }; }
   $('tbFrom').onchange = $('tbTo').onchange = () => {
     let from = +$('tbFrom').value, to = +$('tbTo').value; if (to <= from) to = from + 1;
     store.set('tbRange', { from, to }); route();
