@@ -409,7 +409,8 @@ function route() {
   document.querySelector('nav.tabs').hidden = !OPEN;
   if (!OPEN) { document.getElementById('sideGo').hidden = true; app.innerHTML = viewLock(); afterLock(); return; }
   if (h === 'sync') { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSync(); afterSync(); return; }
-  if (h === 'security') { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSecurity(); afterSecurity(); return; }
+  if (h === 'security') { location.hash = 'shelf'; return; }
+  if (false) { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSecurity(); afterSecurity(); return; }
   const base = h.startsWith('ex-') || h === 'map' ? 'home' : h.startsWith('entry-') ? 'shelf' : h;
   document.getElementById('tabs').innerHTML = TABS.map(([k, l]) =>
     `<button type="button" class="${k === base ? 'on' : ''}" data-go="${k}">${l}</button>`).join('');
@@ -754,7 +755,7 @@ function viewShelf() {
   return `
   <header style="display:flex;flex-direction:column;gap:8px"><h1>책장</h1>
     <p class="lead">${sample ? '아직 꽂힌 기록이 없어요. 아래는 예시예요. 대화하기에서 카드를 하나 골라 써 보세요.' : `기록 ${entries.length}권. 이 기기에 저장돼 있어요.`}</p>
-    <div class="tools"><button type="button" class="btn" data-go="sync">기기 연결${DB.sync ? ' ✓' : ''}</button><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label><button type="button" class="btn ghost" data-go="security">${LOCK ? '앱 잠금 ✓' : '앱 잠금 켜기'}</button>${LOCK ? '<button type="button" class="btn ghost" id="lockNow">지금 잠그기</button>' : ''}${installEvt && !standalone() ? '<button type="button" class="btn ghost" id="installBtn">홈 화면에 설치</button>' : ''}</div>
+    <div class="tools"><button type="button" class="btn" data-go="sync">기기 연결${DB.sync ? ' ✓' : ''}</button><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label>${installEvt && !standalone() ? '<button type="button" class="btn ghost" id="installBtn">홈 화면에 설치</button>' : ''}</div>
     <input type="file" id="restoreFile2" accept=".json,application/json" hidden>
     <p class="step-label">${lastBackupText()} · 휴대폰을 바꾸거나 앱을 지우면 기록도 사라지니, 가끔 백업 파일을 저장해 두세요.</p></header>
   <div class="list">${list.map(e => `
@@ -970,7 +971,9 @@ function startFromBox() {
   RAW = readBox();
   if (!RAW) { DB = {}; LOCK = null; return openApp(); }
   if (RAW.plain) { DB = RAW.db || {}; LOCK = null; return openApp(); }
-  OPEN = false; lockMode = 'unlock'; route();
+  // 비밀번호 기능은 없앴어요. 예전에 비밀번호로 잠가 둔 공책은 비밀번호 없는 새 공책으로 시작해요.
+  try { localStorage.setItem(BOX_KEY + ':old-locked', JSON.stringify(RAW)); localStorage.removeItem(BOX_KEY); } catch (e) {}
+  RAW = null; DB = {}; LOCK = null; openApp(); saveNow();
 }
 function newRecoveryCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = rand(20); let c = '';
@@ -1312,7 +1315,7 @@ async function restoreFrom(file) {
   if (!file) return;
   try {
     const box = JSON.parse(await file.text());
-    if (!box || !(box.plain || box.ct)) throw 0;
+    if (!box || !box.plain) throw 0;
     if (OPEN) { clearTimeout(saveTimer); await saveNow(); }
     if (box.plain && OPEN) { DB = mergeDB(DB, box.db || {}); await saveNow(); loadState(); toast('백업을 불러와 합쳤어요'); return route(); }
     writeBox(box); OPEN = false; LOCK = null; DB = {}; run = null;
