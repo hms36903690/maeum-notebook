@@ -460,13 +460,13 @@ function toast(msg) {
 }
 
 // ---------- 라우팅 ----------
-const TABS = [['home', '대화하기'], ['together', '하루 한 줄'], ['calendar', '일정'], ['shelf', '책장']];
+const TABS = [['home', '대화하기'], ['together', '하루 한 줄'], ['calendar', '일정'], ['shelf', '책장'], ['settings', '설정']];
 function route() {
   const h = (location.hash || '#home').slice(1);
   const app = document.getElementById('app');
   document.querySelector('nav.tabs').hidden = !OPEN;
   if (!OPEN) { document.getElementById('sideGo').hidden = true; app.innerHTML = viewLock(); afterLock(); return; }
-  if (h === 'sync') { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSync(); afterSync(); return; }
+  if (h === 'sync') { location.replace('#settings'); return; }
   if (h === 'security') { location.hash = 'shelf'; return; }
   if (false) { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSecurity(); afterSecurity(); return; }
   const base = h.startsWith('ex-') || h === 'map' || h === 'timebox' ? 'home' : h.startsWith('entry-') ? 'shelf' : h;
@@ -480,6 +480,7 @@ function route() {
   else if (h === 'calendar') app.innerHTML = viewCalendar();
   else if (h.startsWith('entry-')) app.innerHTML = viewEntry(h.slice(6));
   else if (h === 'shelf') app.innerHTML = viewShelf();
+  else if (h === 'settings') app.innerHTML = viewSettings();
   else app.innerHTML = viewHome();
   afterRender(h);
 }
@@ -671,7 +672,7 @@ function viewMap() {
     <header style="display:flex;flex-direction:column;gap:12px"><h1>나의 지도</h1>
       <p class="lead">목표 하나, 꾸준히 할 것 서너 가지. 한 날 하나씩 잎이 돋아요.</p>
       ${map ? '' : `<p>목표 하나를 정하고, 그걸 이루려면 꾸준히 할 것을 서너 가지 적어요. 한 날 하나씩 “오늘 했어요”를 누르면 나무에 잎이 돋아요.</p>
-      <p class="step-label">나의 지도는 이 휴대폰에만 남아요. 기기 연결을 하면 태블릿에서도 이어 가요.</p>`}</header>
+      <p class="step-label">나의 지도는 이 휴대폰에 남아요. 설정에서 구글로 로그인하면 태블릿에서도 이어 가요.</p>`}</header>
     ${map ? '' : `<section class="sk" style="transform:none">
       <p class="map-eyebrow">보기 · 한 달쯤 지난 지도</p><p class="map-goal">${SAMPLE_MAP.goal}</p>
       ${treeSVG(SAMPLE_MAP.habits, SAMPLE_MAP.counts)}</section>`}
@@ -999,14 +1000,13 @@ function viewShelf() {
   return `
   <header style="display:flex;flex-direction:column;gap:8px"><h1>책장</h1>
     <p class="lead">${sample ? '아직 꽂힌 기록이 없어요. 아래는 예시예요. 대화하기에서 카드를 하나 골라 써 보세요.' : `기록 ${entries.length}권. 이 기기에 저장돼 있어요.`}</p>
-    <div class="tools"><button type="button" class="btn" data-go="sync">기기 연결${fbUser || DB.sync ? ' ✓' : ''}</button><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label>${installEvt && !standalone() ? '<button type="button" class="btn ghost" id="installBtn">홈 화면에 설치</button>' : ''}</div>
+    <div class="tools"><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label></div>
     <input type="file" id="restoreFile2" accept=".json,application/json" hidden>
     <p class="step-label">${lastBackupText()} · 휴대폰을 바꾸거나 앱을 지우면 기록도 사라지니, 가끔 백업 파일을 저장해 두세요.</p></header>
   <div class="list">${list.map(e => `
     <button type="button" class="sk" data-go="entry-${e.id}">
       <div class="row"><span class="card-title" style="font-size:1.15rem">${esc(e.title)}</span><span class="meta">${sample ? '<span class="pill">예시</span>' : ''}${prettyDate(e.date)}</span></div>
-      <p class="desc">${esc(firstLine(e))}</p></button>`).join('')}</div>
-  ${viewUpdateBox()}`;
+      <p class="desc">${esc(firstLine(e))}</p></button>`).join('')}</div>`;
 }
 const SAMPLE_ENTRY = { id: 'sample', ex: 'thanks', title: '감사 세 줄', date: today(), sample: true, steps: [
   { p: '오늘 고마웠던 일 세 가지', t: 'list', a: ['아침 버스를 기사님이 기다려 주셨다', '동생이 반찬을 보내 줬다', '비가 그치고 해가 났다'] },
@@ -1124,8 +1124,8 @@ function afterRender(h) {
     $('mPrev').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); route(); };
     $('mNext').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); route(); };
   }
-  if (h === 'shelf') bindUpdateBox();
-  if (h === 'shelf' && $('backupNow')) { if ($('lockNow')) $('lockNow').onclick = lockApp; bindInstall(); $('backupNow').onclick = downloadBackup; $('restoreFile2').onchange = () => restoreFrom($('restoreFile2').files[0]); }
+  if (h === 'settings') { afterSync(); bindUpdateBox(); bindInstall(); }
+  if (h === 'shelf' && $('backupNow')) { if ($('lockNow')) $('lockNow').onclick = lockApp; $('backupNow').onclick = downloadBackup; $('restoreFile2').onchange = () => restoreFrom($('restoreFile2').files[0]); }
   if (h.startsWith('entry-')) {
     const id = h.slice(6), e = entries.find(x => x.id === id);
     if ($('delE')) $('delE').onclick = () => {
@@ -1137,7 +1137,7 @@ function afterRender(h) {
       navigator.clipboard.writeText(entryText(e)).then(() => toast('복사했어요'), () => toast('복사가 막혀 있어요. 직접 선택해서 복사해 주세요'));
     };
   }
-  if (!h.startsWith('entry-') && h !== 'map' && h !== 'together' && h !== 'sync') confirmDel = null;
+  if (!h.startsWith('entry-') && h !== 'map' && h !== 'together' && h !== 'settings') confirmDel = null;
   if (h === 'sync') {}
 }
 document.addEventListener('click', ev => {
@@ -1472,7 +1472,7 @@ let fb = null, fbUser = null, fbUnsub = null, fbPushTimer = null, fbLastRemote =
 let fbErr = '', fbLastSync = 0, fbLoading = null, fbBusy = false, fbReady = false;
 const DEVICE_ID = (() => { try { let d = localStorage.getItem('maeum-notebook:device'); if (!d) { d = Math.random().toString(36).slice(2, 10); localStorage.setItem('maeum-notebook:device', d); } return d; } catch (e) { return Math.random().toString(36).slice(2, 10); } })();
 const loadScript = src => new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = rej; document.head.appendChild(el); });
-function fbRender() { const h = (location.hash || '').slice(1); if (OPEN && (h === 'sync' || h === 'shelf')) { const t = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName); if (!t) route(); } }
+function fbRender() { const h = (location.hash || '').slice(1); if (OPEN && (h === 'settings' || h === 'shelf')) { const t = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName); if (!t) route(); } }
 function fbMsg(e) {
   const c = (e && e.code) || '';
   if (c.includes('popup-closed') || c.includes('cancelled-popup')) return '로그인 창을 닫았어요. 다시 눌러 주세요.';
@@ -1560,8 +1560,18 @@ async function fbSignIn() {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && fbUser) fbSchedule(500); });
 
-function viewSync() {
-  const head = `<button type="button" class="back" data-go="shelf">← 책장으로</button>
+function viewSettings() {
+  return `<header style="display:flex;flex-direction:column;gap:8px"><h1>설정</h1></header>
+  ${viewSync(true)}
+  ${viewUpdateBox()}
+  ${installEvt && !standalone() ? `<section class="sk" style="transform:none;display:flex;flex-direction:column;gap:10px">
+    <h2 style="font-size:1.35rem">홈 화면에 설치</h2>
+    <p class="desc" style="margin:0">마음 공책을 앱처럼 홈 화면 아이콘으로 열 수 있어요.</p>
+    <div class="tools"><button type="button" class="btn" id="installBtn">홈 화면에 설치</button></div></section>` : ''}`;
+}
+function viewSync(inSettings) {
+  const head = inSettings ? `<div style="display:flex;flex-direction:column;gap:4px"><h2 style="font-size:1.5rem">휴대폰 · 태블릿 동기화</h2>
+    <p class="desc" style="margin:0">구글로 로그인하면 휴대폰과 태블릿에서 같은 공책을 이어 써요. 내 구글 계정으로만 볼 수 있어요.</p></div>` : `<button type="button" class="back" data-go="shelf">← 책장으로</button>
   <header style="display:flex;flex-direction:column;gap:8px"><h1>휴대폰 · 태블릿 동기화</h1>
     <p class="lead">구글로 로그인하면 휴대폰과 태블릿에서 같은 공책을 이어 써요. 내 구글 계정으로만 볼 수 있어요.</p></header>`;
   const err = fbErr ? `<p class="err" style="color:#b4472f;margin:0">${esc(fbErr)}</p>` : '';
@@ -1575,7 +1585,7 @@ function viewSync() {
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
     <h2 style="font-size:1.3rem">다른 기기에서도 켜기</h2>
-    <p class="desc" style="margin:0">태블릿(또는 휴대폰)에서 마음 공책을 열고 <b>책장 → 기기 연결 → 구글로 로그인</b>을 누르면 돼요. 같은 구글 계정을 고르세요.</p>
+    <p class="desc" style="margin:0">태블릿(또는 휴대폰)에서 마음 공책을 열고 <b>설정 → 구글로 로그인</b>을 누르면 돼요. 같은 구글 계정을 고르세요.</p>
   </section>`;
   return head + `
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:12px">
@@ -1647,7 +1657,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 42;
+const APP_VERSION = 43;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
@@ -1659,7 +1669,7 @@ async function checkUpdate(show) {
   } catch (e) { if (show) toast('인터넷에 연결되어 있지 않아 확인하지 못했어요'); }
   checkingUpdate = false;
   const h = (location.hash || '#home').slice(1);
-  if (OPEN && (h === 'shelf' || h === 'home' || h === '')) {
+  if (OPEN && (h === 'settings' || h === 'home' || h === '')) {
     const typing = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
     if (!typing) route();
   }
