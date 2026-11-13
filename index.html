@@ -150,7 +150,7 @@ textarea:focus, .field:focus { outline: none; }
 .habit span { min-width: 0; overflow-wrap: anywhere; }
 .stat { font-family: var(--font-hand); font-size: 1.25rem; }
 
-/* 같이해요 */
+/* 하루 한 줄 */
 .post { padding: 12px 0; border-bottom: 1px dashed var(--shadow); display: flex; flex-direction: column; gap: 2px; }
 .post small { color: var(--ink-soft); }
 .cat-row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -245,7 +245,7 @@ nav.tabs button.on::after {
 <body>
 
 <main class="wrap" id="app"></main>
-<button class="side-go" id="sideGo" type="button" hidden>같이해요 <i>›</i></button>
+<button class="side-go" id="sideGo" type="button" hidden>하루 한 줄 <i>›</i></button>
 <nav class="tabs" aria-label="메뉴"><div class="in" id="tabs"></div></nav>
 <div class="toast" id="toast" hidden></div>
 
@@ -407,7 +407,7 @@ function toast(msg) {
 }
 
 // ---------- 라우팅 ----------
-const TABS = [['home', '대화하기'], ['together', '같이해요'], ['calendar', '일정'], ['shelf', '책장']];
+const TABS = [['home', '대화하기'], ['together', '하루 한 줄'], ['calendar', '일정'], ['shelf', '책장']];
 function route() {
   const h = (location.hash || '#home').slice(1);
   const app = document.getElementById('app');
@@ -460,7 +460,7 @@ function viewHome() {
       </button>`).join('') || '<p class="empty">찾는 카드가 없어요. 다른 말로 찾아보세요.</p>'}
   </div>
   <button type="button" class="sk" data-go="together" style="margin-top:12px">
-    <div class="row"><h3 style="font-size:1.4rem">같이해요!</h3><span class="meta">운동 · 명상 · 독서 · 감사 …</span></div>
+    <div class="row"><h3 style="font-size:1.4rem">하루 한 줄</h3><span class="meta">운동 · 명상 · 독서 · 감사 …</span></div>
     <p class="desc">${todayPosts ? `오늘 ${todayPosts}줄 남겼어요. 한 줄 더 →` : '오늘의 한 줄을 남겨요 →'}</p>
   </button>`;
 }
@@ -647,7 +647,7 @@ function viewMap() {
   <div class="actions"><button type="button" class="btn ghost" id="editMap">지도 고치기</button><button type="button" class="btn ghost" id="resetMap">${confirmDel === 'map' ? '정말 새로 시작할까요? 한 번 더 누르면 지워져요' : '새 나무 심기'}</button></div>`;
 }
 
-// ---------- 같이해요 ----------
+// ---------- 하루 한 줄 ----------
 const BASE_CATS = ['운동', '명상', '독서', '감사', '감정일기 쓰기'];
 let postCat = '명상', addingCat = false;
 function allCats() {
@@ -678,7 +678,7 @@ function viewTogether() {
       <button type="button" class="del" data-delpost="${p.id}">${confirmDel === p.id ? '정말 지울까요? 한 번 더' : '지우기'}</button>
     </div>`;
   return `
-  <header style="display:flex;flex-direction:column;gap:8px"><h1>같이해요!</h1>
+  <header style="display:flex;flex-direction:column;gap:8px"><h1>하루 한 줄</h1>
     <p class="lead">하루에 한 줄, 아무 때나 남기며 이어 가요.</p></header>
   <div class="chips-row">
     ${cats.map(c => `<button type="button" class="cat-chip ${c === postCat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}
