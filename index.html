@@ -893,7 +893,8 @@ function allCats() {
   const fromPosts = posts.map(p => p.cat).filter(c => !BASE_CATS.includes(c) && !extra.includes(c));
   return [...BASE_CATS, ...extra, ...new Set(fromPosts)];
 }
-const catTitle = c => /(하기|쓰기)$/.test(c) ? `꾸준히 ${c}` : `꾸준히 ${c}하기`;
+const CAT_TITLES = { '확언': '오늘의 한 줄 확언' };   // 칸마다 따로 정한 카드 제목
+const catTitle = c => CAT_TITLES[c] || (/(하기|쓰기)$/.test(c) ? `꾸준히 ${c}` : `꾸준히 ${c}하기`);
 function catStats(c) {
   const mine = posts.filter(p => p.cat === c);
   const days = new Set(mine.map(p => p.date));
