@@ -275,6 +275,7 @@ function saveNow() {
     if (KEY !== key) return;
     const box = await sealBox();
     writeBox(box); RAW = box;
+    scheduleSync();
   }).catch(() => toast('저장하지 못했어요. 휴대폰 저장 공간을 확인해 주세요'));
   return saveChain;
 }
@@ -284,6 +285,7 @@ const store = {
   set(k, v) { DB[k] = v; pushServer(); },
   del(k) { delete DB[k]; pushServer(); }
 };
+function tomb(k) { const d = store.get('deleted', {}); d[k] = Date.now(); store.set('deleted', d); }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pad = n => String(n).padStart(2, '0');
 const dkey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -404,6 +406,7 @@ function route() {
   const app = document.getElementById('app');
   document.querySelector('nav.tabs').hidden = !KEY;
   if (!KEY) { document.getElementById('sideGo').hidden = true; app.innerHTML = viewLock(); afterLock(); return; }
+  if (h === 'sync') { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSync(); afterSync(); return; }
   if (h === 'security') { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSecurity(); afterSecurity(); return; }
   const base = h.startsWith('ex-') || h === 'map' ? 'home' : h.startsWith('entry-') ? 'shelf' : h;
   document.getElementById('tabs').innerHTML = TABS.map(([k, l]) =>
@@ -547,13 +550,13 @@ function viewDone(ex) {
     </div>
   </section>`;
 }
-function saveDraft() { if (run && !run.done) store.set('draft:' + run.id, run); }
+function saveDraft() { if (run && !run.done) { run.savedAt = Date.now(); store.set('draft:' + run.id, run); } }
 function finishRun() {
   const ex = exById(run.id);
   const e = { id: 'e' + Date.now(), ex: run.id, title: ex.title, date: today(), at: Date.now(),
     steps: run.steps.map((s, i) => ({ p: s.p, t: s.t || 'text', labels: s.labels, a: run.answers[i] }))
       .filter(st => !ex.build || hasAnswer(st.a)) };
-  entries.unshift(e); saveEntries(); store.del('draft:' + run.id);
+  entries.unshift(e); saveEntries(); store.del('draft:' + run.id); tomb('draft:' + run.id);
   run.done = true; run.entryId = e.id; route();
 }
 function hasAnswer(a) { return Array.isArray(a) ? a.some(x => typeof x === 'string' ? x.trim() : x && x.can !== null) : String(a).trim(); }
@@ -749,7 +752,7 @@ function viewShelf() {
   return `
   <header style="display:flex;flex-direction:column;gap:8px"><h1>책장</h1>
     <p class="lead">${sample ? '아직 꽂힌 기록이 없어요. 아래는 예시예요. 대화하기에서 카드를 하나 골라 써 보세요.' : `기록 ${entries.length}권. 비밀번호로 잠가 이 휴대폰에만 저장해 두었어요.`}</p>
-    <div class="tools"><button type="button" class="btn" id="lockNow">지금 잠그기</button><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label><button type="button" class="btn ghost" data-go="security">비밀번호 바꾸기</button></div>
+    <div class="tools"><button type="button" class="btn" id="lockNow">지금 잠그기</button><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label><button type="button" class="btn ghost" data-go="sync">기기 연결${DB.sync ? ' ✓' : ''}</button><button type="button" class="btn ghost" data-go="security">비밀번호 바꾸기</button></div>
     <input type="file" id="restoreFile2" accept=".json,application/json" hidden>
     <p class="step-label">${lastBackupText()} · 휴대폰을 바꾸거나 앱을 지우면 기록도 사라지니, 가끔 백업 파일을 저장해 두세요.</p></header>
   <div class="list">${list.map(e => `
@@ -853,7 +856,7 @@ function afterRender(h) {
   }
   if (h.startsWith('ex-') && run && !run.done && !run.started) {
     $('startBtn').onclick = () => { run.started = true; saveDraft(); route(); window.scrollTo(0, 0); };
-    if ($('restartBtn')) $('restartBtn').onclick = () => { store.del('draft:' + run.id); run = startRun(run.id); run.started = true; route(); };
+    if ($('restartBtn')) $('restartBtn').onclick = () => { store.del('draft:' + run.id); tomb('draft:' + run.id); run = startRun(run.id); run.started = true; route(); };
   } else if (h.startsWith('ex-') && run && !run.done) {
     const s = run.steps[run.step];
     const ta = $('ta'); if (ta) ta.oninput = () => { run.answers[run.step] = ta.value; saveDraft(); };
@@ -886,17 +889,17 @@ function afterRender(h) {
       if (!habits.length) { toast('꾸준히 할 것을 하나 이상 적어 주세요'); return; }
       const old = map && map.checks || {};
       const was = !!map;
-      map = { goal: $('mGoal').value.trim(), habits, checks: old, since: (map && map.since) || today() }; saveMap(); toast(was ? '지도를 고쳤어요' : '나무를 심었어요'); route();
+      map = { goal: $('mGoal').value.trim(), habits, checks: old, checksAt: (map && map.checksAt) || {}, since: (map && map.since) || today(), id: (map && map.id) || 'm' + Date.now(), mod: Date.now() }; saveMap(); toast(was ? '지도를 고쳤어요' : '나무를 심었어요'); route();
     };
     document.querySelectorAll('[data-hb]').forEach(b => b.onclick = () => {
       const t = today(), i = +b.dataset.hb; map.checks[t] = map.checks[t] || map.habits.map(() => false);
-      map.checks[t][i] = !map.checks[t][i]; saveMap();
+      map.checks[t][i] = !map.checks[t][i]; map.checksAt = map.checksAt || {}; map.checksAt[t] = Date.now(); saveMap();
       if (map.checks[t][i]) toast('잎이 하나 돋았어요'); route();
     });
     if ($('cancelEdit')) $('cancelEdit').onclick = () => route();
     if ($('editMap')) $('editMap').onclick = () => { map.editing = true; route(); map.editing = false; };
     if ($('resetMap')) $('resetMap').onclick = () => {
-      if (confirmDel === 'map') { map = null; store.del('map'); confirmDel = null; } else confirmDel = 'map'; route();
+      if (confirmDel === 'map') { tomb('map:' + (map.id || 'm0')); map = null; store.del('map'); confirmDel = null; } else confirmDel = 'map'; route();
     };
   }
   if (h === 'together') {
@@ -904,19 +907,19 @@ function afterRender(h) {
     if ($('addCat')) $('addCat').onclick = () => { addingCat = true; route(); $('catName').focus(); };
     if ($('catForm')) $('catForm').onsubmit = ev => {
       ev.preventDefault(); const n = $('catName').value.trim(); addingCat = false;
-      if (n && !allCats().includes(n)) { store.set('cats', [...store.get('cats', []), n]); postCat = n; toast(`「${n}」 칸을 만들었어요`); }
+      if (n && !allCats().includes(n)) { const d = store.get('deleted', {}); delete d['cat:' + n]; store.set('deleted', d); store.set('cats', [...store.get('cats', []), n]); postCat = n; toast(`「${n}」 칸을 만들었어요`); }
       else if (n) postCat = n;
       route();
     };
     if ($('rmCat')) $('rmCat').onclick = () => {
       if (confirmDel !== 'cat') { confirmDel = 'cat'; return route(); }
-      store.set('cats', store.get('cats', []).filter(c => c !== postCat)); confirmDel = null; postCat = BASE_CATS[0]; route();
+      tomb('cat:' + postCat); store.set('cats', store.get('cats', []).filter(c => c !== postCat)); confirmDel = null; postCat = BASE_CATS[0]; route();
     };
-    document.querySelectorAll('[data-like]').forEach(b => b.onclick = () => { const p = posts.find(x => x.id === b.dataset.like); p.liked = !p.liked; savePosts(); route(); });
+    document.querySelectorAll('[data-like]').forEach(b => b.onclick = () => { const p = posts.find(x => x.id === b.dataset.like); p.liked = !p.liked; p.mod = Date.now(); savePosts(); route(); });
     document.querySelectorAll('[data-delpost]').forEach(b => b.onclick = () => {
       const id = b.dataset.delpost;
       if (confirmDel !== id) { confirmDel = id; return route(); }
-      posts = posts.filter(x => x.id !== id); confirmDel = null; savePosts(); toast('지웠어요'); route();
+      posts = posts.filter(x => x.id !== id); tomb(id); confirmDel = null; savePosts(); toast('지웠어요'); route();
     });
     $('postForm').onsubmit = ev => {
       ev.preventDefault(); const t = $('postText').value.trim(); if (!t) { $('postText').focus(); return; }
@@ -933,7 +936,7 @@ function afterRender(h) {
   if (h.startsWith('entry-')) {
     const id = h.slice(6), e = entries.find(x => x.id === id);
     if ($('delE')) $('delE').onclick = () => {
-      if (confirmDel === id) { entries = entries.filter(x => x.id !== id); saveEntries(); confirmDel = null; toast('지웠어요'); go('shelf'); }
+      if (confirmDel === id) { entries = entries.filter(x => x.id !== id); tomb(id); saveEntries(); confirmDel = null; toast('지웠어요'); go('shelf'); }
       else { confirmDel = id; route(); }
     };
     if ($('imgE')) $('imgE').onclick = () => saveEntryImage(e);
@@ -943,6 +946,7 @@ function afterRender(h) {
     };
   }
   if (!h.startsWith('entry-') && h !== 'map' && h !== 'together') confirmDel = null;
+  if (h === 'sync') {}
 }
 document.addEventListener('click', ev => {
   const g = ev.target.closest('[data-go]'); if (!g) return;
@@ -953,7 +957,7 @@ document.addEventListener('click', ev => {
 document.getElementById('sideGo').onclick = () => go('together');
 window.addEventListener('hashchange', route);
 // ---------- 잠금 ----------
-let lockMode = 'loading', lockErr = '', fails = 0, waitUntil = 0;
+let lockMode = 'loading', lockErr = '', lockNote = '', fails = 0, waitUntil = 0, carryDB = null, pendingSync = null;
 function loadState() {
   entries = store.get('entries', []);
   map = store.get('map', null);
@@ -973,10 +977,19 @@ function viewLock() {
       <p class="err" id="lockErr">${esc(lockErr)}</p>
       <button class="btn primary" type="submit">시작하기</button>
     </form>
-    <div class="tools" style="justify-content:center"><label class="btn ghost" for="restoreFile">백업 파일로 시작하기</label></div>
+    <div class="tools" style="justify-content:center"><button type="button" class="btn" id="joinBtn">다른 기기에서 쓰던 공책 이어 쓰기</button><label class="btn ghost" for="restoreFile">백업 파일로 시작하기</label></div>
     <input type="file" id="restoreFile" accept=".json,application/json" hidden>
     ${installBtn()}</div>`;
+  if (lockMode === 'join') return `<div class="lock">${logo}<h1>이어 쓰기</h1>
+    <p class="lead">휴대폰(또는 다른 기기)에서 연결할 때 쓴 GitHub 열쇠를 넣어요.</p>
+    <form id="joinForm" class="sk" style="transform:none">
+      <label>GitHub 열쇠 (ghp_로 시작)<input class="field" id="joinToken" autocomplete="off" spellcheck="false" required></label>
+      <p class="err" id="lockErr">${esc(lockErr)}</p>
+      <button class="btn primary" type="submit">공책 찾기</button>
+    </form>
+    <button type="button" class="btn ghost" id="joinBack">← 돌아가기</button></div>`;
   return `<div class="lock">${logo}<h1>마음 공책</h1>
+    ${lockNote ? `<p class="lead">${esc(lockNote)}</p>` : ''}
     <form id="lockForm" class="sk" style="transform:none">
       <label>비밀번호<input class="field" id="pw1" type="password" autocomplete="current-password" required autofocus></label>
       <p class="err" id="lockErr">${esc(lockErr)}</p>
@@ -985,6 +998,29 @@ function viewLock() {
 }
 function afterLock() {
   bindInstall();
+  const jb = document.getElementById('joinBtn'); if (jb) jb.onclick = () => { lockMode = 'join'; lockErr = ''; route(); };
+  const jbk = document.getElementById('joinBack'); if (jbk) jbk.onclick = () => { lockMode = RAW && RAW.ct ? 'unlock' : 'setup'; lockErr = ''; route(); };
+  const jf = document.getElementById('joinForm');
+  if (jf) {
+    document.getElementById('joinToken').focus();
+    jf.onsubmit = async ev => {
+      ev.preventDefault();
+      const btn = jf.querySelector('button[type=submit]'), errEl = document.getElementById('lockErr');
+      const token = document.getElementById('joinToken').value.trim();
+      btn.disabled = true; btn.textContent = '찾는 중…';
+      try {
+        const cfg = { token, gistId: null };
+        const box = await gistRead(cfg);
+        if (!box) throw '이 열쇠로 연결된 공책이 없어요. 먼저 쓰던 기기의 책장 → 기기 연결에서 연결해 주세요.';
+        writeBox(box); RAW = box; pendingSync = cfg;
+        lockMode = 'unlock'; lockErr = ''; lockNote = '공책을 찾았어요. 쓰던 기기의 비밀번호로 열어 주세요.'; route();
+      } catch (m) {
+        errEl.textContent = typeof m === 'string' ? m : (m && m.message) || '찾지 못했어요. 인터넷 연결을 확인해 주세요';
+        btn.disabled = false; btn.textContent = '공책 찾기';
+      }
+    };
+    return;
+  }
   const rf = document.getElementById('restoreFile');
   if (rf) rf.onchange = () => restoreFrom(rf.files[0]);
   const f = document.getElementById('lockForm'); if (!f) return;
@@ -1011,8 +1047,10 @@ function afterLock() {
           throw '비밀번호가 맞지 않아요';
         }
         SALT = salt; KEY = key; fails = 0;
+        if (carryDB) { DB = mergeDB(carryDB, DB); carryDB = null; await saveNow(); }
+        if (pendingSync) { if (!DB.sync) DB.sync = pendingSync; pendingSync = null; await saveNow(); }
       }
-      lockErr = ''; loadState(); touch(); route();
+      lockErr = ''; lockNote = ''; loadState(); touch(); route(); syncNow();
     } catch (m) {
       KEY = null; btn.disabled = false; btn.textContent = lockMode === 'setup' ? '시작하기' : '열기';
       showErr(typeof m === 'string' ? m : '열지 못했어요. 프로그램을 껐다 켜 주세요'); pw1.select();
@@ -1022,7 +1060,7 @@ function afterLock() {
 async function lockApp() {
   clearTimeout(saveTimer); await saveNow();
   KEY = null; SALT = null; DB = {}; entries = []; map = null; posts = SAMPLE_POSTS; run = null; query = '';
-  lockMode = 'unlock'; lockErr = ''; route();
+  syncNeedPw = null; lockMode = 'unlock'; lockErr = ''; lockNote = ''; route();
 }
 // 5분 동안 손대지 않으면 자동으로 잠급니다.
 const IDLE_MS = 5 * 60 * 1000; let lastTouch = Date.now();
@@ -1053,6 +1091,189 @@ function afterSecurity() {
     SALT = crypto.getRandomValues(new Uint8Array(16)); KEY = await deriveKey(b, SALT);
     await saveNow(); toast('비밀번호를 바꿨어요'); go('shelf');
   };
+}
+
+// ---------- 기기 연결 (GitHub 비밀 gist로 휴대폰·태블릿 맞추기) ----------
+// 올라가는 것은 비밀번호로 암호화된 상자뿐이라 GitHub도 내용을 읽을 수 없어요.
+const GIST_FILE = 'maeum-notebook.json', GIST_DESC = '마음 공책 기기 연결 (암호화됨)';
+const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=maeum-notebook';
+let syncing = false, syncAgain = false, syncTimer = null, lastSync = 0, syncErr = '', syncNeedPw = null;
+async function gh(token, path, opt = {}) {
+  const r = await fetch('https://api.github.com' + path, { ...opt, cache: 'no-store', headers: {
+    Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, ...(opt.body ? { 'Content-Type': 'application/json' } : {}) } });
+  if (r.status === 401) throw new Error('GitHub 열쇠가 맞지 않거나 기한이 끝났어요');
+  if (r.status === 403) throw new Error('GitHub 열쇠에 gist 권한이 없어요. 만들 때 gist에 체크해 주세요');
+  if (!r.ok) { const e = new Error(`GitHub 응답 오류 (${r.status})`); e.status = r.status; throw e; }
+  return r.status === 204 ? null : r.json();
+}
+async function findGist(token) {
+  for (let page = 1; page <= 10; page++) {
+    const list = await gh(token, `/gists?per_page=100&page=${page}`);
+    const g = list.find(g => g.files && g.files[GIST_FILE]);
+    if (g) return g.id;
+    if (list.length < 100) break;
+  }
+  return null;
+}
+async function gistRead(cfg) {
+  if (!cfg.gistId) { cfg.gistId = await findGist(cfg.token); if (!cfg.gistId) return null; }
+  let g;
+  try { g = await gh(cfg.token, '/gists/' + cfg.gistId); }
+  catch (e) { if (e.status === 404) { cfg.gistId = null; return gistRead(cfg); } throw e; }
+  const f = g.files && g.files[GIST_FILE]; if (!f) return null;
+  const text = f.truncated ? await (await fetch(f.raw_url, { cache: 'no-store' })).text() : f.content;
+  return JSON.parse(text);
+}
+async function gistWrite(cfg, box) {
+  const files = { [GIST_FILE]: { content: JSON.stringify(box) } };
+  if (cfg.gistId) await gh(cfg.token, '/gists/' + cfg.gistId, { method: 'PATCH', body: JSON.stringify({ description: GIST_DESC, files }) });
+  else { const g = await gh(cfg.token, '/gists', { method: 'POST', body: JSON.stringify({ description: GIST_DESC, public: false, files }) }); cfg.gistId = g.id; }
+}
+// 두 기기의 기록을 합쳐요. 지운 것은 'deleted'에 남겨 두어 다시 살아나지 않게 해요.
+function mergeDB(a, b) {
+  const out = { ...b, ...a };
+  const del = { ...(b.deleted || {}) };
+  for (const [k, v] of Object.entries(a.deleted || {})) del[k] = Math.max(del[k] || 0, v);
+  out.deleted = del;
+  const byId = (x = [], y = []) => {
+    const m = new Map();
+    for (const e of [...y, ...x]) { const o = m.get(e.id); if (!o || (e.mod || 0) >= (o.mod || 0)) m.set(e.id, e); }
+    return [...m.values()].filter(e => !del[e.id]).sort((p, q) => (q.at || 0) - (p.at || 0));
+  };
+  out.entries = byId(a.entries, b.entries);
+  out.posts = byId(a.posts, b.posts);
+  out.cats = [...new Set([...(b.cats || []), ...(a.cats || [])])].filter(c => !del['cat:' + c]);
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (k.startsWith('draft:')) {
+    const x = a[k], y = b[k], w = !x ? y : !y ? x : ((x.savedAt || 0) >= (y.savedAt || 0) ? x : y);
+    if (!w || (del[k] || 0) >= (w.savedAt || 0)) delete out[k]; else out[k] = w;
+  }
+  const maps = [a.map, b.map].filter(m => m && !del['map:' + (m.id || 'm0')]);
+  if (!maps.length) delete out.map;
+  else if (maps.length === 1) out.map = maps[0];
+  else if ((maps[0].id || 'm0') !== (maps[1].id || 'm0')) out.map = maps.sort((p, q) => (q.mod || 0) - (p.mod || 0))[0];
+  else {
+    const [x, y] = maps, base = (x.mod || 0) >= (y.mod || 0) ? x : y;
+    const checks = {}, checksAt = {};
+    for (const d of new Set([...Object.keys(x.checks || {}), ...Object.keys(y.checks || {})])) {
+      const tx = (x.checksAt || {})[d] || 0, ty = (y.checksAt || {})[d] || 0;
+      const pick = !y.checks[d] ? x : !x.checks[d] ? y : tx >= ty ? x : y;
+      checks[d] = pick.checks[d]; checksAt[d] = Math.max(tx, ty);
+    }
+    out.map = { ...base, checks, checksAt };
+  }
+  out.sync = a.sync || b.sync;
+  return out;
+}
+function scheduleSync() { if (!KEY || !DB.sync) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 2500); }
+async function syncNow() {
+  const cfg = DB.sync; if (!KEY || !cfg || !cfg.token) return;
+  if (syncing) { syncAgain = true; return; }
+  syncing = true;
+  try {
+    const before = JSON.stringify(DB);
+    const remote = await gistRead(cfg);
+    if (remote && remote.ct) {
+      let rdb = null;
+      if (remote.salt === b64(SALT)) { try { rdb = await openBox(remote, KEY); } catch (e) {} }
+      if (!rdb) {   // 다른 기기에서 비밀번호를 바꿨어요 → 새 비밀번호로 다시 열고 합쳐요
+        carryDB = DB; writeBox(remote); RAW = remote;
+        KEY = null; SALT = null; run = null; lockMode = 'unlock'; lockErr = '';
+        lockNote = '다른 기기에서 비밀번호를 바꿨어요. 새 비밀번호로 열어 주세요.'; route(); return;
+      }
+      DB = mergeDB(DB, rdb); loadState();
+    }
+    const box = await sealBox(); writeBox(box); RAW = box;
+    await gistWrite(cfg, box);
+    lastSync = Date.now(); syncErr = '';
+    const h = (location.hash || '#home').slice(1);
+    const typing = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+    if ((JSON.stringify(DB) !== before && !typing && !h.startsWith('ex-')) || h === 'sync') route();
+  } catch (e) {
+    syncErr = (e && e.message) || '맞추지 못했어요';
+    if ((location.hash || '').slice(1) === 'sync') route();
+  } finally {
+    syncing = false;
+    if (syncAgain) { syncAgain = false; setTimeout(syncNow, 500); }
+  }
+}
+setInterval(() => { if (KEY && DB.sync && document.visibilityState === 'visible') syncNow(); }, 60000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
+
+function viewSync() {
+  const cfg = DB.sync;
+  const head = `<button type="button" class="back" data-go="shelf">← 책장으로</button>
+  <header style="display:flex;flex-direction:column;gap:8px"><h1>기기 연결</h1>
+    <p class="lead">휴대폰과 태블릿에서 같은 공책을 이어 써요. 기록은 비밀번호로 암호화된 채로 내 GitHub에 올라가서, GitHub도 내용을 읽을 수 없어요.</p></header>`;
+  if (syncNeedPw) return head + `
+  <form class="sk" id="mergeForm" style="transform:none;display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:1.4rem">이미 쓰던 공책이 있어요</h2>
+    <p>다른 기기에서 먼저 연결한 공책을 찾았어요. 그 공책의 비밀번호를 넣으면 두 공책을 하나로 합쳐요. 이 기기의 비밀번호도 그 비밀번호로 바뀌어요.</p>
+    <label>그 공책의 비밀번호<input class="field" id="mergePw" type="password" autocomplete="current-password" required></label>
+    <p class="err" id="mergeErr" style="color:#b4472f;min-height:1.4em"></p>
+    <div class="actions"><button type="button" class="btn ghost" id="mergeCancel">그만두기</button><button class="btn primary" type="submit">합치기</button></div>
+  </form>`;
+  if (cfg) return head + `
+  <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:12px">
+    <div class="row"><h2 style="font-size:1.4rem">연결됨 ✓</h2><span class="meta">${syncing ? '맞추는 중…' : lastSync ? '마지막으로 맞춘 때 ' + new Date(lastSync).toTimeString().slice(0, 5) : ''}</span></div>
+    ${syncErr ? `<p class="err" style="color:#b4472f">${esc(syncErr)}</p>` : ''}
+    <p class="desc" style="margin:0">쓰면 몇 초 뒤에 자동으로 올라가고, 앱을 열 때와 1분마다 다른 기기 것을 받아 와요.</p>
+    <div class="tools"><button type="button" class="btn primary" id="syncNowBtn">지금 맞추기</button><button type="button" class="btn ghost" id="unlinkBtn">${confirmDel === 'unlink' ? '이 기기 연결을 끊을까요? 한 번 더' : '이 기기 연결 끊기'}</button></div>
+  </section>
+  <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:10px">
+    <h2 style="font-size:1.4rem">태블릿(다른 기기)에서 이어 쓰기</h2>
+    <ol style="margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px">
+      <li>태블릿 크롬으로 이 앱 주소를 열어요.</li>
+      <li>첫 화면에서 <b>다른 기기에서 쓰던 공책 이어 쓰기</b>를 눌러요.</li>
+      <li>이 기기에 넣었던 GitHub 열쇠를 넣고, 같은 비밀번호로 열어요.</li>
+    </ol>
+    <div class="tools"><button type="button" class="btn" id="copyToken">GitHub 열쇠 복사</button></div>
+  </section>`;
+  return head + `
+  <form class="sk" id="linkForm" style="transform:none;display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:1.4rem">처음 한 번만 해요</h2>
+    <ol style="margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:8px">
+      <li><a href="${TOKEN_URL}" target="_blank" rel="noopener">GitHub 열쇠 만들기</a>를 눌러 GitHub에 로그인해요.</li>
+      <li><b>Expiration</b>은 <b>No expiration</b>으로 고르고, <b>gist</b>에 체크된 것을 확인해요.</li>
+      <li>맨 아래 <b>Generate token</b>을 누르고, 나온 <code>ghp_…</code> 글자를 복사해요.</li>
+      <li>아래 칸에 붙여 넣고 <b>연결하기</b>를 눌러요.</li>
+    </ol>
+    <label>GitHub 열쇠<input class="field" id="linkToken" autocomplete="off" spellcheck="false" placeholder="ghp_…" required></label>
+    <p class="warn" style="font-size:.88rem;color:var(--ink-soft)">이 열쇠는 비밀번호처럼 다뤄요. 다른 사람에게 보여 주지 마세요. 열쇠는 이 공책 안에 암호화되어 저장돼요.</p>
+    <p class="err" id="linkErr" style="color:#b4472f;min-height:1.4em"></p>
+    <div class="actions"><span></span><button class="btn primary" type="submit">연결하기</button></div>
+  </form>`;
+}
+function afterSync() {
+  const $ = id => document.getElementById(id);
+  if ($('linkForm')) $('linkForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const btn = $('linkForm').querySelector('button[type=submit]'), cfg = { token: $('linkToken').value.trim(), gistId: null };
+    btn.disabled = true; btn.textContent = '연결하는 중…';
+    try {
+      const remote = await gistRead(cfg);
+      if (remote && remote.ct && remote.salt !== b64(SALT)) { syncNeedPw = { cfg, remote }; return route(); }
+      store.set('sync', cfg); await saveNow(); await syncNow(); toast('연결했어요'); route();
+    } catch (e) { $('linkErr').textContent = (e && e.message) || '연결하지 못했어요'; btn.disabled = false; btn.textContent = '연결하기'; }
+  };
+  if ($('mergeForm')) {
+    $('mergeCancel').onclick = () => { syncNeedPw = null; route(); };
+    $('mergeForm').onsubmit = async ev => {
+      ev.preventDefault();
+      const { cfg, remote } = syncNeedPw, salt = unb64(remote.salt);
+      try {
+        const key = await deriveKey($('mergePw').value, salt);
+        const rdb = await openBox(remote, key);
+        DB = mergeDB(DB, rdb); DB.sync = cfg; SALT = salt; KEY = key; syncNeedPw = null;
+        loadState(); await saveNow(); await syncNow(); toast('두 공책을 합쳤어요'); route();
+      } catch (e) { $('mergeErr').textContent = '비밀번호가 맞지 않아요'; }
+    };
+  }
+  if ($('syncNowBtn')) $('syncNowBtn').onclick = async () => { syncErr = ''; const p = syncNow(); route(); await p; };
+  if ($('unlinkBtn')) $('unlinkBtn').onclick = () => {
+    if (confirmDel !== 'unlink') { confirmDel = 'unlink'; return route(); }
+    confirmDel = null; store.del('sync'); toast('이 기기 연결을 끊었어요. GitHub에 올라간 공책은 그대로 있어요'); route();
+  };
+  if ($('copyToken')) $('copyToken').onclick = () => navigator.clipboard.writeText(DB.sync.token).then(() => toast('복사했어요'), () => toast('복사가 막혀 있어요'));
 }
 
 // ---------- 백업 ----------
