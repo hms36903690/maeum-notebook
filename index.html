@@ -466,9 +466,9 @@ function viewHome() {
 function startRun(id) {
   const ex = exById(id); if (!ex) return null;
   const draft = store.get('draft:' + id, null);
-  if (draft) { draft.started = false; return draft; }
+  if (draft) return draft;
   const steps = (ex.build ? ex.build() : ex.steps).map(s => ({ ...s }));
-  return { id, step: 0, started: false, steps, answers: steps.map(s => s.t === 'list' ? Array(s.n).fill('') : s.t === 'sort' ? [] : '') };
+  return { id, step: 0, steps, answers: steps.map(s => s.t === 'list' ? Array(s.n).fill('') : s.t === 'sort' ? [] : '') };
 }
 function canList(r, want) {
   const sortIdx = r.steps.findIndex(s => s.t === 'sort');
@@ -480,7 +480,6 @@ function viewRun(id) {
   if (!ex) return `<p class="empty">없는 카드예요.</p>`;
   if (!run || run.id !== id) run = startRun(id);
   if (run.done) return viewDone(ex);
-  if (!run.started) return viewIntro(ex);
   const s = run.steps[run.step], a = run.answers[run.step], n = run.steps.length;
   let above = '';
   if (typeof s.show === 'number') {
@@ -510,7 +509,8 @@ function viewRun(id) {
     input = `<textarea id="ta" rows="${s.big ? 10 : 5}" aria-label="답">${esc(a)}</textarea>`;
   }
   return `
-  <button type="button" class="back" data-go="home">← 목록으로</button>
+  <div class="row" style="align-items:center"><button type="button" class="back" data-go="home">← 목록으로</button>
+    ${run.answers.some(hasAnswer) ? '<button type="button" class="btn ghost" id="restartBtn" style="padding:0;font-size:.9rem">처음부터 다시</button>' : ''}</div>
   <header style="display:flex;flex-direction:column;gap:8px"><h1 style="font-size:1.9rem">${ex.title}</h1>
     <div class="progress" aria-hidden="true">${run.steps.map((_, i) => `<span class="${i <= run.step ? 'on' : ''}"></span>`).join('')}</div></header>
   <section class="sk" style="transform:none">
@@ -529,20 +529,6 @@ function viewRun(id) {
         : `<button type="button" class="btn primary" id="next">${run.step === n - 1 ? '책장에 꽂기' : '다음'}</button>`}
     </div>
   </div>`;
-}
-function viewIntro(ex) {
-  const resume = run.answers.some(hasAnswer);
-  return `<section class="intro">
-    <button type="button" class="icon-back" data-go="home" aria-label="목록으로">‹</button>
-    <h1>${ex.heading || ex.title}</h1>
-    <p class="big">${ex.intro || ex.desc}</p>
-    <p class="small">${ex.meta || ex.time + ' · 중간에 나가도 이어서 할 수 있어요.'} 다 쓰면 PDF로도 저장할 수 있어요.</p>
-    ${[].concat(ex.note || [], ex.notes || []).map(n => `<p class="small">${n}</p>`).join('')}
-    ${resume ? `<p class="small" style="color:var(--ink)">쓰다 만 기록이 있어요 (${run.step + 1} / ${run.steps.length} 단계).</p>
-      <button type="button" class="btn-dark" id="startBtn">이어 쓰기</button>
-      <button type="button" class="btn-dark ghosty" id="restartBtn">처음부터 다시</button>`
-      : '<button type="button" class="btn-dark" id="startBtn">시작하기</button>'}
-  </section>`;
 }
 function viewDone(ex) {
   return `
@@ -803,10 +789,8 @@ function afterRender(h) {
   if (h === 'home' || h === '') {
     const q = $('q'); if (q) q.oninput = () => { query = q.value; const pos = q.selectionStart; route(); const nq = $('q'); nq.focus(); nq.setSelectionRange(pos, pos); };
   }
-  if (h.startsWith('ex-') && run && !run.done && !run.started) {
-    $('startBtn').onclick = () => { run.started = true; saveDraft(); route(); window.scrollTo(0, 0); };
-    if ($('restartBtn')) $('restartBtn').onclick = () => { store.del('draft:' + run.id); tomb('draft:' + run.id); run = startRun(run.id); run.started = true; route(); };
-  } else if (h.startsWith('ex-') && run && !run.done) {
+  if (h.startsWith('ex-') && run && !run.done) {
+    if ($('restartBtn')) $('restartBtn').onclick = () => { store.del('draft:' + run.id); tomb('draft:' + run.id); run = startRun(run.id); route(); };
     const s = run.steps[run.step];
     const ta = $('ta'); if (ta) ta.oninput = () => { run.answers[run.step] = ta.value; saveDraft(); };
     document.querySelectorAll('[data-li]').forEach(inp => inp.oninput = () => { run.answers[run.step][+inp.dataset.li] = inp.value; saveDraft(); });
@@ -899,7 +883,6 @@ function afterRender(h) {
 document.addEventListener('click', ev => {
   const g = ev.target.closest('[data-go]'); if (!g) return;
   const to = g.dataset.go; if (to.startsWith('ex-') && run && run.done) run = null;
-  if (to.startsWith('ex-') && run) run.started = false;  // 카드를 누르면 늘 소개 화면부터
   confirmDel = null; go(to);
 });
 document.getElementById('sideGo').onclick = () => go('together');
