@@ -116,10 +116,11 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .tb-half label.habit { cursor: pointer; }
 .tb-top .num { font-family: var(--font-hand); font-weight: 700; font-size: 1.3rem; width: 1em; flex: none; }
 .tb-top .done .field { text-decoration: line-through; color: var(--ink-soft); }
-.tb-grid { display: grid; grid-template-columns: 3.4em 1fr 1fr; border-top: 1.5px solid var(--line); }
+.tb-grid { display: grid; grid-template-columns: 3.6em 1fr 1fr; border-top: 1.5px solid var(--line); }
 .tb-hd { font-size: .85rem; color: var(--ink-soft); padding: 6px 8px; border-bottom: 1.5px solid var(--line); font-weight: 700; }
 .tb-hd:nth-child(3) { border-left: 1px dashed var(--shadow); }
-.tb-grid .hr small { display: block; font-family: var(--font-body); font-weight: 400; font-size: .7rem; color: var(--ink-soft); }
+.tb-grid .hr { font-family: var(--font-body); font-size: .9rem; font-weight: 700; color: var(--ink); padding: 8px 6px 0 0; }
+.tb-grid .hr.half { font-weight: 400; color: var(--ink-soft); }
 .tb-grid .hr.half { border-bottom-width: 1.5px; border-bottom-color: var(--shadow); }
 .tb-grid .hr.nowt { color: var(--dot); }
 .tb-cell .pin { float: right; font-size: .75rem; margin-left: 4px; }
@@ -807,7 +808,7 @@ function viewTimebox() {
   let grid = `<span class="tb-hd"></span><span class="tb-hd">해야 할 일</span><span class="tb-hd">한 일</span>`;
   for (let h = r.from; h < r.to; h++) for (const m of [0, 1]) {
     const key = slotKey(h, m), c = tbSlot(d, key), pinned = !!tbFixed()[key], act = tbActual(d, key), isNow = key === nowKey;
-    grid += `<span class="hr ${m ? 'half' : ''} ${isNow ? 'nowt' : ''}">${m ? '' : h}<small>${m ? ':30' : ':00'}</small></span>
+    grid += `<span class="hr ${m ? 'half' : ''} ${isNow ? 'nowt' : ''}">${h}:${m ? '30' : '00'}</span>
       <button type="button" class="tb-cell ${m ? 'half' : ''} ${c && c.t ? 'fill' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'p:' + key ? 'edit' : ''}" data-slot="p:${key}" aria-label="${h}시 ${m ? '30분' : ''} 해야 할 일">${pinned ? '<span class="pin">📌</span>' : ''}<span class="t">${c && c.t ? esc(c.t) : ''}</span></button>
       <button type="button" class="tb-cell act ${m ? 'half' : ''} ${act ? 'done' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'a:' + key ? 'edit' : ''}" data-slot="a:${key}" aria-label="${h}시 ${m ? '30분' : ''} 한 일"><span class="t">${act ? esc(act) : ''}</span></button>`;
     if (eKey === key) {
@@ -1740,7 +1741,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 46;
+const APP_VERSION = 47;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
