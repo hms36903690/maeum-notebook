@@ -1333,7 +1333,14 @@ async function gh(token, path, opt = {}) {
   const r = await fetch('https://api.github.com' + path, { ...opt, cache: 'no-store', headers: {
     Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, ...(opt.body ? { 'Content-Type': 'application/json' } : {}) } });
   if (r.status === 401) throw new Error('GitHub 열쇠가 맞지 않거나 기한이 끝났어요');
-  if (r.status === 403) throw new Error('GitHub 열쇠에 gist 권한이 없어요. 만들 때 gist에 체크해 주세요');
+  if (r.status === 403 || r.status === 429) {
+    const body = await r.text().catch(() => '');
+    if (r.status === 429 || r.headers.get('x-ratelimit-remaining') === '0' || /rate limit|secondary|abuse/i.test(body)) {
+      const e = new Error('GitHub에 너무 자주 맞춰서 잠깐 쉬는 중이에요. 몇 분 뒤 저절로 다시 맞춰요. 기록은 이 기기에 안전하게 있어요');
+      e.rate = true; throw e;
+    }
+    throw new Error('GitHub 열쇠에 gist 권한이 없어요. 만들 때 gist에 체크해 주세요');
+  }
   if (!r.ok) { const e = new Error(`GitHub 응답 오류 (${r.status})`); e.status = r.status; throw e; }
   return r.status === 204 ? null : r.json();
 }
@@ -1405,26 +1412,35 @@ function mergeDB(a, b) {
   out.sync = a.sync || b.sync;
   return out;
 }
-function scheduleSync() { if (!OPEN || !DB.sync) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 2500); }
-async function syncNow() {
+let syncPauseUntil = 0;
+// 키를 정렬해서 비교해요 (내용이 같은데 순서만 달라서 '바뀌었다'고 보지 않게)
+const stableJSON = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, key) => (o[key] = x[key], o), {}) : x);
+function scheduleSync() { if (!OPEN || !DB.sync) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 5000); }
+async function syncNow(force) {
   const cfg = DB.sync; if (!OPEN || !cfg || !cfg.token) return;
   if (syncing) { syncAgain = true; return; }
+  if (Date.now() < syncPauseUntil && !force) return;
   syncing = true;
   let changed = false;
   try {
     const before = JSON.stringify(DB), key = await syncKey(cfg.token);
     const remote = await gistRead(cfg);
+    let remoteJSON = null;
     if (remote && remote.v === 3) {
       let rdb; try { rdb = await decJSON(key, remote); } catch (e) { throw new Error('GitHub의 공책을 열지 못했어요. 다른 열쇠로 올린 공책일 수 있어요'); }
+      remoteJSON = stableJSON(rdb);
       DB = mergeDB(DB, rdb); loadState();
     }
     await saveNow();
-    const c = await encJSON(key, DB);
-    await gistWrite(cfg, { v: 3, iv: c.iv, ct: c.ct });
+    if (stableJSON(DB) !== remoteJSON) {   // 달라진 게 있을 때만 올려요
+      const c = await encJSON(key, DB);
+      await gistWrite(cfg, { v: 3, iv: c.iv, ct: c.ct });
+    }
     lastSync = Date.now(); syncErr = '';
     changed = JSON.stringify(DB) !== before;
   } catch (e) {
     syncErr = (e && e.message) || '맞추지 못했어요';
+    if (e && e.rate) syncPauseUntil = Date.now() + 5 * 60 * 1000;
   } finally {
     syncing = false;   // 끝났다고 먼저 표시한 뒤 화면을 다시 그려요
     const h = (location.hash || '#home').slice(1);
@@ -1433,7 +1449,7 @@ async function syncNow() {
     if (syncAgain) { syncAgain = false; setTimeout(syncNow, 500); }
   }
 }
-setInterval(() => { if (OPEN && DB.sync && document.visibilityState === 'visible') syncNow(); }, 60000);
+setInterval(() => { if (OPEN && DB.sync && document.visibilityState === 'visible') syncNow(); }, 15000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
 
 function viewSync() {
@@ -1445,7 +1461,7 @@ function viewSync() {
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:12px">
     <div class="row"><h2 style="font-size:1.4rem">연결됨 ✓</h2><span class="meta">${syncing ? '맞추는 중…' : lastSync ? '마지막으로 맞춘 때 ' + new Date(lastSync).toTimeString().slice(0, 5) : ''}</span></div>
     ${syncErr ? `<p class="err" style="color:#b4472f">${esc(syncErr)}</p>` : ''}
-    <p class="desc" style="margin:0">쓰면 몇 초 뒤에 자동으로 올라가고, 앱을 열 때와 1분마다 다른 기기 것을 받아 와요.</p>
+    <p class="desc" style="margin:0">쓰면 몇 초 뒤에 자동으로 올라가고, 앱을 열 때와 15초마다 다른 기기 것을 받아 와요.</p>
     <div class="tools"><button type="button" class="btn primary" id="syncNowBtn">지금 맞추기</button><button type="button" class="btn ghost" id="unlinkBtn">${confirmDel === 'unlink' ? '이 기기 연결을 끊을까요? 한 번 더' : '이 기기 연결 끊기'}</button></div>
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:10px">
@@ -1487,7 +1503,7 @@ function afterSync() {
       toast('연결했어요'); route();
     } catch (e) { store.del('sync'); $('linkErr').textContent = (e && e.message) || '연결하지 못했어요'; btn.disabled = false; btn.textContent = '연결하기'; }
   };
-  if ($('syncNowBtn')) $('syncNowBtn').onclick = async () => { syncErr = ''; const p = syncNow(); route(); await p; };
+  if ($('syncNowBtn')) $('syncNowBtn').onclick = async () => { syncErr = ''; const p = syncNow(true); route(); await p; };
   if ($('unlinkBtn')) $('unlinkBtn').onclick = () => {
     if (confirmDel !== 'unlink') { confirmDel = 'unlink'; return route(); }
     confirmDel = null; store.del('sync'); toast('이 기기 연결을 끊었어요. GitHub에 올라간 공책은 그대로 있어요'); route();
