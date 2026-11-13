@@ -308,7 +308,7 @@ const QUESTION_POOL = [
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 const EXERCISES = [
-  { id: 'thanks', title: '감사 세 줄', time: '3분', tag: '처음이라면 이것부터',
+  { id: 'thanks', title: '감사 세 줄', time: '3분',
     intro: '오늘 고마웠던 일 세 가지를 적고, 그중 하나가 왜 고마웠는지 적어요.', meta: '3분 ·',
     desc: '오늘 고마웠던 일 세 가지와 그중 하나가 고마웠던 이유.',
     steps: [
