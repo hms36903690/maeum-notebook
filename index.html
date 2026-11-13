@@ -97,7 +97,10 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 }
 
 .tb-date { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.tb-date h2 { font-size: 1.35rem; text-align: center; flex: 1; }
+.tb-date h2 { font-size: 1.35rem; text-align: center; }
+.tb-datebtn { flex: 1; border: 0; background: none; color: var(--ink); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; border-radius: 10px; }
+.tb-datebtn:hover { background: color-mix(in srgb, var(--marker) 35%, transparent); }
+.tb-datebtn .caret { font-size: .9rem; color: var(--ink-soft); }
 .tb-top { display: flex; flex-direction: column; gap: 4px; }
 .tb-top label { display: flex; align-items: center; gap: 10px; }
 .tb-top input[type=checkbox], .tb-check { width: 22px; height: 22px; accent-color: var(--leaf-2); flex: none; }
@@ -677,7 +680,7 @@ function viewMap() {
 
 // ---------- 타임박싱 ----------
 // 하루를 30분 칸으로 나눠, 우선순위 3가지와 브레인 덤프에서 골라 칸에 넣어요.
-let tbDay = null, tbEdit = null;
+let tbDay = null, tbEdit = null, tbCal = false, tbCalMonth = null;
 const weekday = k => '일월화수목금토'[new Date(k + 'T00:00').getDay()];
 const addDays = (k, n) => { const d = new Date(k + 'T00:00'); d.setDate(d.getDate() + n); return dkey(d); };
 function tbAll() { return store.get('timebox', {}); }
@@ -696,6 +699,27 @@ function tbSummary() {
 }
 function tbRange() { return store.get('tbRange', { from: 6, to: 24 }); }
 const slotKey = (h, m) => `${pad(h)}:${m ? '30' : '00'}`;
+function tbCalendar(k) {
+  const base = tbCalMonth || new Date(k + 'T00:00');
+  const y = base.getFullYear(), m = base.getMonth();
+  const first = new Date(y, m, 1).getDay(), last = new Date(y, m + 1, 0).getDate();
+  let cells = ['일', '월', '화', '수', '목', '금', '토'].map(d => `<span class="dow">${d}</span>`).join('');
+  for (let i = 0; i < first; i++) cells += '<span></span>';
+  for (let d = 1; d <= last; d++) {
+    const dk = `${y}-${pad(m + 1)}-${pad(d)}`, has = tbFilled(dk) > 0 || (tbAll()[dk] && tbAll()[dk].top.some(x => x.t));
+    cells += `<button type="button" data-tbpick="${dk}" class="${has ? 'has' : ''} ${dk === today() ? 'today' : ''} ${dk === k ? 'sel' : ''}" aria-label="${prettyDate(dk)}">${d}</button>`;
+  }
+  const recent = Object.keys(tbAll()).filter(d => d !== k && (tbFilled(d) > 0 || tbAll()[d].top.some(x => x.t))).sort().reverse().slice(0, 7);
+  return `<section class="sk" style="transform:none;display:flex;flex-direction:column;gap:12px">
+    <div class="row" style="align-items:center">
+      <button type="button" class="btn ghost" id="tbmPrev" aria-label="이전 달">‹</button>
+      <h2 style="font-size:1.35rem">${y}년 ${m + 1}월</h2>
+      <button type="button" class="btn ghost" id="tbmNext" aria-label="다음 달">›</button></div>
+    <div class="cal">${cells}</div>
+    <p class="step-label">점이 찍힌 날은 타임박싱을 한 날이에요.</p>
+    ${recent.length ? `<div><p class="step-label" style="margin-bottom:6px">최근에 쓴 날</p><div class="chips">${recent.map(d => `<button type="button" class="chip" data-tbpick="${d}">${prettyDate(d).replace(/^\d+년 /, '')} (${weekday(d)}) · 칸 ${tbFilled(d)}</button>`).join('')}</div></div>` : ''}
+  </section>`;
+}
 function viewTimebox() {
   const k = tbDay || today(), d = tbGet(k), r = tbRange();
   const now = new Date(), nowKey = k === today() ? slotKey(now.getHours(), now.getMinutes() >= 30) : '';
@@ -728,9 +752,10 @@ function viewTimebox() {
     <p class="lead">할 일을 다 쏟아 내고, 가장 중요한 세 가지를 고른 뒤, 시간 칸에 넣어 하루를 미리 짜요.</p></header>
   <div class="tb-date">
     <button type="button" class="btn ghost" id="tbPrev" aria-label="전날">‹</button>
-    <h2>${prettyDate(k)} (${weekday(k)})</h2>
+    <button type="button" class="tb-datebtn" id="tbDateBtn" aria-expanded="${tbCal}"><h2>${prettyDate(k)} (${weekday(k)}) <span class="caret">${tbCal ? '▴' : '▾'}</span></h2><span class="step-label">${tbCal ? '달력 닫기' : '날짜를 누르면 지난 날을 볼 수 있어요'}</span></button>
     <button type="button" class="btn ghost" id="tbNext" aria-label="다음 날">›</button>
   </div>
+  ${tbCal ? tbCalendar(k) : ''}
   ${k !== today() ? '<div class="tools" style="justify-content:center"><button type="button" class="btn" id="tbToday">오늘로</button></div>' : ''}
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:10px">
     <div class="row"><h2 style="font-size:1.4rem"><span class="hl">우선순위 3가지</span></h2>
@@ -758,9 +783,13 @@ function afterTimebox() {
   const $ = id => document.getElementById(id);
   const k = tbDay || today();
   const upd = fn => { const d = tbGet(k); fn(d); tbSave(k, d); };
-  $('tbPrev').onclick = () => { tbDay = addDays(k, -1); tbEdit = null; route(); };
-  $('tbNext').onclick = () => { tbDay = addDays(k, 1); tbEdit = null; route(); };
-  if ($('tbToday')) $('tbToday').onclick = () => { tbDay = null; tbEdit = null; route(); };
+  $('tbPrev').onclick = () => { tbDay = addDays(k, -1); tbEdit = null; tbCalMonth = null; route(); };
+  $('tbDateBtn').onclick = () => { tbCal = !tbCal; tbCalMonth = null; tbEdit = null; route(); };
+  document.querySelectorAll('[data-tbpick]').forEach(b => b.onclick = () => { tbDay = b.dataset.tbpick === today() ? null : b.dataset.tbpick; tbCal = false; tbCalMonth = null; tbEdit = null; route(); window.scrollTo(0, 0); });
+  if ($('tbmPrev')) $('tbmPrev').onclick = () => { const b = tbCalMonth || new Date(k + 'T00:00'); tbCalMonth = new Date(b.getFullYear(), b.getMonth() - 1, 1); route(); };
+  if ($('tbmNext')) $('tbmNext').onclick = () => { const b = tbCalMonth || new Date(k + 'T00:00'); tbCalMonth = new Date(b.getFullYear(), b.getMonth() + 1, 1); route(); };
+  $('tbNext').onclick = () => { tbDay = addDays(k, 1); tbEdit = null; tbCalMonth = null; route(); };
+  if ($('tbToday')) $('tbToday').onclick = () => { tbDay = null; tbEdit = null; tbCal = false; tbCalMonth = null; route(); };
   if ($('tbCarry')) $('tbCarry').onclick = () => {
     const y = tbGet(addDays(k, -1)), left = y.top.filter(x => x.t && !x.done).map(x => x.t);
     upd(d => left.slice(0, 3).forEach((t, i) => d.top[i] = { t, done: false })); toast('전날 못 한 것을 가져왔어요'); route();
