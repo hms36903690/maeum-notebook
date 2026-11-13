@@ -808,7 +808,7 @@ function viewTimebox() {
   let grid = `<span class="tb-hd"></span><span class="tb-hd">해야 할 일</span><span class="tb-hd">한 일</span>`;
   for (let h = r.from; h < r.to; h++) for (const m of [0, 1]) {
     const key = slotKey(h, m), c = tbSlot(d, key), pinned = !!tbFixed()[key], act = tbActual(d, key), isNow = key === nowKey;
-    grid += `<span class="hr ${m ? 'half' : ''} ${isNow ? 'nowt' : ''}">${h}:${m ? '30' : '00'}</span>
+    grid += `<span class="hr ${m ? 'half' : ''} ${isNow ? 'nowt' : ''}">${m ? ':30' : h + ':00'}</span>
       <button type="button" class="tb-cell ${m ? 'half' : ''} ${c && c.t ? 'fill' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'p:' + key ? 'edit' : ''}" data-slot="p:${key}" aria-label="${h}시 ${m ? '30분' : ''} 해야 할 일">${pinned ? '<span class="pin">📌</span>' : ''}<span class="t">${c && c.t ? esc(c.t) : ''}</span></button>
       <button type="button" class="tb-cell act ${m ? 'half' : ''} ${act ? 'done' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'a:' + key ? 'edit' : ''}" data-slot="a:${key}" aria-label="${h}시 ${m ? '30분' : ''} 한 일"><span class="t">${act ? esc(act) : ''}</span></button>`;
     if (eKey === key) {
@@ -1741,7 +1741,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 47;
+const APP_VERSION = 48;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
