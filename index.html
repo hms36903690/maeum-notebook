@@ -103,7 +103,17 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .tb-datebtn .caret { font-size: .9rem; color: var(--ink-soft); }
 .tb-top { display: flex; flex-direction: column; gap: 4px; }
 .tb-top label { display: flex; align-items: center; gap: 10px; }
-.tb-top input[type=checkbox], .tb-check { width: 22px; height: 22px; accent-color: var(--leaf-2); flex: none; }
+.tb-top input[type=checkbox], .tb-check {
+  appearance: none; -webkit-appearance: none; flex: none; margin: 0; cursor: pointer;
+  width: 26px; height: 26px; border: 2px solid var(--line); background: var(--card);
+  border-radius: 4px 6px 3px 5px / 5px 3px 6px 4px; box-shadow: 1px 2px 0 var(--shadow);
+  display: inline-grid; place-content: center;
+}
+.tb-check::after { content: ""; width: 12px; height: 7px; border-left: 3px solid var(--ink); border-bottom: 3px solid var(--ink); transform: rotate(-45deg) translate(1px, -2px) scale(0); transition: transform .12s; }
+.tb-check:checked { background: var(--leaf-pale); }
+.tb-check:checked::after { transform: rotate(-45deg) translate(1px, -2px) scale(1); }
+.tb-check:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+.tb-half label.habit { cursor: pointer; }
 .tb-top .num { font-family: var(--font-hand); font-weight: 700; font-size: 1.3rem; width: 1em; flex: none; }
 .tb-top .done .field { text-decoration: line-through; color: var(--ink-soft); }
 .tb-grid { display: grid; grid-template-columns: 3.2em 1fr 1fr; border-top: 1.5px solid var(--line); }
