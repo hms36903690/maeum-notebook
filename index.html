@@ -812,7 +812,7 @@ function viewTimebox() {
       <form id="addCheckForm" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="field" id="newCheck" placeholder="예: 절 108배" autocomplete="off"><button class="btn" type="submit">추가</button></form>
       <p class="step-label">글자를 눌러 바로 고칠 수 있어요. 고친 목록은 모든 날에 똑같이 나와요.</p>`
     : tbList().length ? tbList().map(n => `<div class="habit ck-row"><label class="ck-name"><input type="checkbox" class="tb-check" data-check="${esc(n)}" ${d.checks[n] ? 'checked' : ''}><span style="${d.checks[n] ? 'text-decoration:line-through;color:var(--ink-soft)' : ''}">${esc(n)}</span></label>
-      <span class="ck-paren">(<input class="ck-note" data-note="${esc(n)}" value="${esc((d.notes || {})[n] || '')}" aria-label="${esc(n)} 기록" autocomplete="off">)</span></div>`).join('')
+      <span class="ck-paren"><input class="ck-note" data-note="${esc(n)}" value="${esc((d.notes || {})[n] || '')}" aria-label="${esc(n)} 기록" autocomplete="off"></span></div>`).join('')
     : '<p class="step-label">항목 고치기를 눌러 날마다 할 일을 넣어 보세요.</p>'}
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
