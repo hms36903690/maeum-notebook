@@ -116,9 +116,18 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .tb-half label.habit { cursor: pointer; }
 .tb-top .num { font-family: var(--font-hand); font-weight: 700; font-size: 1.3rem; width: 1em; flex: none; }
 .tb-top .done .field { text-decoration: line-through; color: var(--ink-soft); }
-.tb-grid { display: grid; grid-template-columns: 3.2em 1fr 1fr; border-top: 1.5px solid var(--line); }
+.tb-grid { display: grid; grid-template-columns: 3.4em 1fr 1fr; border-top: 1.5px solid var(--line); }
+.tb-hd { font-size: .85rem; color: var(--ink-soft); padding: 6px 8px; border-bottom: 1.5px solid var(--line); font-weight: 700; }
+.tb-hd:nth-child(3) { border-left: 1px dashed var(--shadow); }
+.tb-grid .hr small { display: block; font-family: var(--font-body); font-weight: 400; font-size: .7rem; color: var(--ink-soft); }
+.tb-grid .hr.half { border-bottom-width: 1.5px; border-bottom-color: var(--shadow); }
+.tb-grid .hr.nowt { color: var(--dot); }
+.tb-cell .pin { float: right; font-size: .75rem; margin-left: 4px; }
+.tb-cell.act { background: transparent; }
+.tb-cell.act.done { background: color-mix(in srgb, var(--leaf-pale) 75%, transparent); }
+.tb-cell.act.done .t { text-decoration: none; }
 .tb-grid .hr { font-family: var(--font-hand); font-weight: 700; font-size: 1.05rem; padding: 6px 4px 0 0; text-align: right; border-bottom: 1px solid var(--shadow); font-variant-numeric: tabular-nums; }
-.tb-cell { min-height: 44px; border: 0; border-left: 1px dashed var(--shadow); border-bottom: 1px solid var(--shadow); background: transparent; text-align: left; padding: 6px 8px; font-size: .92rem; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
+.tb-cell { min-height: 40px; border: 0; border-left: 1px dashed var(--shadow); border-bottom: 1px solid var(--shadow); background: transparent; text-align: left; padding: 6px 8px; font-size: .92rem; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
 .tb-cell .t { display: block; }
 .tb-cell .m { display: block; font-size: .72rem; color: var(--ink-soft); }
 .tb-cell.fill { background: color-mix(in srgb, var(--marker) 55%, transparent); }
@@ -338,6 +347,10 @@ function saveNow() {
   return saveChain;
 }
 function pushServer() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); }
+// 앱을 닫거나 다른 앱으로 갈 때는 기다리지 않고 바로 저장해요
+function flushSave() { if (!OPEN) return; clearTimeout(saveTimer); try { if (!LOCK) writeBox({ v: 2, plain: true, db: DB }); } catch (e) {} saveNow(); }
+window.addEventListener('pagehide', flushSave);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
 const store = {
   get(k, d) { return k in DB ? DB[k] : d; },
   set(k, v) { DB[k] = v; pushServer(); },
@@ -714,15 +727,17 @@ function tbList() { return store.get('tbChecklist', ['절', '명상']); }
 const weekday = k => '일월화수목금토'[new Date(k + 'T00:00').getDay()];
 const addDays = (k, n) => { const d = new Date(k + 'T00:00'); d.setDate(d.getDate() + n); return dkey(d); };
 function tbAll() { return store.get('timebox', {}); }
-function tbGet(k) { const d = tbAll()[k]; return Object.assign({ top: [{ t: '', done: false }, { t: '', done: false }, { t: '', done: false }], dump: '', slots: {}, checks: {}, notes: {}, memo: '' }, d || {}); }
+function tbGet(k) { const d = tbAll()[k]; return Object.assign({ top: [{ t: '', done: false }, { t: '', done: false }, { t: '', done: false }], dump: '', slots: {}, checks: {}, notes: {}, memo: '', actual: {} }, d || {}); }
 function tbSave(k, d) { const all = tbAll(); d.mod = Date.now(); all[k] = d; store.set('timebox', all); }
+function tbActual(d, key) { const a = (d.actual || {})[key]; if (a !== undefined) return a; const own = d.slots[key]; return own && own.done && own.t ? own.t : ''; }
+function tbDoneCount(k) { const d = tbAll()[k]; if (!d) return 0; const keys = new Set([...Object.keys(d.actual || {}), ...Object.keys(d.slots || {})]); let n = 0; for (const key of keys) if (tbActual(tbGet(k), key)) n++; return n; }
 function tbFilled(k) { const d = tbAll()[k]; return d ? Object.values(d.slots || {}).filter(x => x && x.t).length : 0; }
-function tbAny(k) { const d = tbAll()[k]; return !!d && (tbFilled(k) > 0 || d.top.some(x => x.t) || Object.values(d.checks || {}).some(Boolean) || Object.values(d.notes || {}).some(v => (v || '').trim()) || !!(d.memo || '').trim()); }
+function tbAny(k) { const d = tbAll()[k]; return !!d && (tbFilled(k) > 0 || tbDoneCount(k) > 0 || d.top.some(x => x.t) || Object.values(d.checks || {}).some(Boolean) || Object.values(d.notes || {}).some(v => (v || '').trim()) || !!(d.memo || '').trim()); }
 function tbDayText(k) {
   const d = tbAll()[k]; if (!d) return '';
   const tops = d.top.filter(x => x.t);
   const list = tbList(), ck = list.filter(n => (d.checks || {})[n]).length;
-  return `칸 ${tbFilled(k)}개${tops.length ? ' · 우선순위 ' + tops.filter(x => x.done).length + '/' + tops.length : ''}${list.length ? ' · 체크 ' + ck + '/' + list.length : ''}${tops[0] ? ' · ' + esc(tops[0].t) : ''}`;
+  return `계획 ${tbFilled(k)}칸 · 한 일 ${tbDoneCount(k)}칸${tops.length ? ' · 우선순위 ' + tops.filter(x => x.done).length + '/' + tops.length : ''}${list.length ? ' · 체크 ' + ck + '/' + list.length : ''}${tops[0] ? ' · ' + esc(tops[0].t) : ''}`;
 }
 function tbSummary() {
   const k = today(), d = tbAll()[k];
@@ -786,25 +801,36 @@ function viewTimebox() {
   const dumps = d.dump.split('\n').map(x => x.trim()).filter(Boolean);
   const yday = tbAll()[addDays(k, -1)];
   const carry = yday ? [...yday.top.filter(x => x.t && !x.done).map(x => x.t)] : [];
-  let grid = '';
-  for (let h = r.from; h < r.to; h++) {
-    grid += `<span class="hr">${h}</span>`;
-    for (const m of [0, 1]) {
-      const key = slotKey(h, m), c = tbSlot(d, key), pinned = !!tbFixed()[key];
-      grid += `<button type="button" class="tb-cell ${c && c.t ? 'fill' : ''} ${c && c.done ? 'done' : ''} ${key === nowKey ? 'now' : ''} ${tbEdit === key ? 'edit' : ''}" data-slot="${key}" aria-label="${h}시 ${m ? '30분' : '정각'}">
-        <span class="m">${m ? ':30' : ':00'}${pinned ? ' 📌' : ''}</span><span class="t">${c && c.t ? esc(c.t) : ''}</span></button>`;
-    }
-    if (tbEdit && Number(tbEdit.slice(0, 2)) === h) {
-      const c = tbSlot(d, tbEdit) || { t: '', done: false }, pinnedNow = tbFixed()[tbEdit];
-      const picks = [...new Set([...tops, ...dumps])];
-      grid += `<div class="tb-edit">
-        <label class="step-label" for="slotText">${Number(tbEdit.slice(0, 2))}시 ${tbEdit.endsWith('30') ? '30분' : '정각'}부터 30분</label>
-        <input class="field" id="slotText" value="${esc(c.t)}" placeholder="이 칸에 할 일" autocomplete="off">
-        ${picks.length ? `<div class="chips">${picks.map(t => `<button type="button" class="chip" data-pick="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : '<p class="step-label">우선순위나 브레인 덤프에 적은 일이 여기 나와요. 눌러서 바로 넣을 수 있어요.</p>'}
-        <div class="tools"><button type="button" class="btn primary" id="slotOk">넣기</button><button type="button" class="btn" id="slotNext">다음 칸까지 이어서</button><button type="button" class="btn" id="slotDone">${c.done ? '했어요 ✓ 취소' : '했어요 ✓'}</button><button type="button" class="btn ghost" id="slotDel">${pinnedNow ? '오늘만 비우기' : '비우기'}</button></div>
-        <div class="tools"><button type="button" class="btn ghost" id="slotPin" style="padding:0">${pinnedNow ? '📌 매일 고정 풀기' : '📌 매일 이 시간에 고정'}</button></div>
-        ${pinnedNow ? `<p class="step-label" style="margin:0">매일 이 시간에 「${esc(pinnedNow)}」가 들어가요. 여기서 고치면 오늘만 바뀌어요.</p>` : ''}
-      </div>`;
+  const [eSide, eKey] = tbEdit ? [tbEdit.slice(0, 1), tbEdit.slice(2)] : ['', ''];
+  const picks = [...new Set([...tops, ...dumps])];
+  const chips = list => list.length ? `<div class="chips">${list.map(t => `<button type="button" class="chip" data-pick="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : '';
+  let grid = `<span class="tb-hd"></span><span class="tb-hd">해야 할 일</span><span class="tb-hd">한 일</span>`;
+  for (let h = r.from; h < r.to; h++) for (const m of [0, 1]) {
+    const key = slotKey(h, m), c = tbSlot(d, key), pinned = !!tbFixed()[key], act = tbActual(d, key), isNow = key === nowKey;
+    grid += `<span class="hr ${m ? 'half' : ''} ${isNow ? 'nowt' : ''}">${m ? '' : h}<small>${m ? ':30' : ':00'}</small></span>
+      <button type="button" class="tb-cell ${m ? 'half' : ''} ${c && c.t ? 'fill' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'p:' + key ? 'edit' : ''}" data-slot="p:${key}" aria-label="${h}시 ${m ? '30분' : ''} 해야 할 일">${pinned ? '<span class="pin">📌</span>' : ''}<span class="t">${c && c.t ? esc(c.t) : ''}</span></button>
+      <button type="button" class="tb-cell act ${m ? 'half' : ''} ${act ? 'done' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'a:' + key ? 'edit' : ''}" data-slot="a:${key}" aria-label="${h}시 ${m ? '30분' : ''} 한 일"><span class="t">${act ? esc(act) : ''}</span></button>`;
+    if (eKey === key) {
+      const label = `${h}시 ${m ? '30분' : '정각'}부터 30분`;
+      if (eSide === 'p') {
+        const pinnedNow = tbFixed()[key];
+        grid += `<div class="tb-edit">
+          <label class="step-label" for="slotText">${label} · 해야 할 일</label>
+          <input class="field" id="slotText" value="${esc(c ? c.t : '')}" placeholder="이 시간에 할 일" autocomplete="off">
+          ${chips(picks) || '<p class="step-label">우선순위나 브레인 덤프에 적은 일이 여기 나와요. 눌러서 바로 넣을 수 있어요.</p>'}
+          <div class="tools"><button type="button" class="btn primary" id="slotOk">넣기</button><button type="button" class="btn" id="slotNext">다음 칸까지 이어서</button><button type="button" class="btn ghost" id="slotDel">${pinnedNow ? '오늘만 비우기' : '비우기'}</button></div>
+          <div class="tools"><button type="button" class="btn ghost" id="slotPin" style="padding:0">${pinnedNow ? '📌 매일 고정 풀기' : '📌 매일 이 시간에 고정'}</button></div>
+          ${pinnedNow ? `<p class="step-label" style="margin:0">매일 이 시간에 「${esc(pinnedNow)}」가 들어가요. 여기서 고치면 오늘만 바뀌어요.</p>` : ''}
+        </div>`;
+      } else {
+        grid += `<div class="tb-edit">
+          <label class="step-label" for="slotText">${label} · 한 일</label>
+          <input class="field" id="slotText" value="${esc(act)}" placeholder="이 시간에 실제로 한 일" autocomplete="off">
+          ${c && c.t ? `<div class="tools"><button type="button" class="btn" id="asPlan">계획대로 했어요 (${esc(c.t)})</button></div>` : ''}
+          ${chips(picks.filter(t => !c || t !== c.t))}
+          <div class="tools"><button type="button" class="btn primary" id="slotOk">넣기</button><button type="button" class="btn" id="slotNext">다음 칸까지 이어서</button><button type="button" class="btn ghost" id="slotDel">비우기</button></div>
+        </div>`;
+      }
     }
   }
   return `
@@ -831,8 +857,8 @@ function viewTimebox() {
     <textarea id="tbDump" class="tb-dump" aria-label="브레인 덤프">${esc(d.dump)}</textarea>
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:10px">
-    <div class="row"><h2 style="font-size:1.4rem">시간표</h2><span class="meta">칸 ${tbFilled(k)}개</span></div>
-    <p class="step-label">칸을 누르면 할 일을 넣을 수 있어요. 지금 시각 칸에는 왼쪽에 주황 줄이 있어요.</p>
+    <div class="row"><h2 style="font-size:1.4rem">시간표</h2><span class="meta">계획 ${tbFilled(k)} · 한 일 ${tbDoneCount(k)}</span></div>
+    <p class="step-label">왼쪽에는 해야 할 일, 오른쪽에는 실제로 한 일을 적어요. 칸을 누르면 적을 수 있어요. 지금 시각 줄에는 주황 줄이 있어요.</p>
     <div class="tb-grid">${grid}</div>
     <div class="tb-range">
       <label>시작 <select id="tbFrom">${Array.from({ length: 12 }, (_, i) => i + 4).map(i => `<option value="${i}" ${i === r.from ? 'selected' : ''}>${i}시</option>`).join('')}</select></label>
@@ -902,35 +928,51 @@ function afterTimebox() {
   };
   document.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { tbEdit = tbEdit === b.dataset.slot ? null : b.dataset.slot; route(); if (tbEdit) $('slotText').focus(); });
   if (tbEdit) {
-    const key = tbEdit, inp = $('slotText');
-    const setSlot = (t, done) => upd(d => {
-      const f = tbFixed()[key];
-      if (t && f && t === f && !done) delete d.slots[key];          // 고정 그대로면 따로 저장하지 않아요
-      else if (t) d.slots[key] = { t, done: !!done };
-      else if (f) d.slots[key] = { t: '', skip: true };             // 고정 칸을 오늘만 비우기
-      else delete d.slots[key];
-    });
-    const cur = () => tbSlot(tbGet(k), key) || { t: '', done: false };
-    inp.oninput = () => setSlot(inp.value.trim(), cur().done);
-    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); tbEdit = null; route(); } };
-    document.querySelectorAll('[data-pick]').forEach(c => c.onclick = () => { setSlot(c.dataset.pick, false); tbEdit = null; route(); });
-    $('slotOk').onclick = () => { setSlot(inp.value.trim(), cur().done); tbEdit = null; route(); };
-    $('slotDel').onclick = () => { setSlot('', false); tbEdit = null; route(); };
-    $('slotPin').onclick = () => {
-      const fx = { ...tbFixed() };
-      if (fx[key]) { delete fx[key]; setStamped('tbFixed', fx); toast('매일 고정을 풀었어요'); }
-      else { const t = inp.value.trim() || cur().t; if (!t) return toast('먼저 할 일을 넣어 주세요'); fx[key] = t; setStamped('tbFixed', fx); upd(d => { delete d.slots[key]; }); toast('매일 이 시간에 고정했어요'); }
-      route(); $('slotText') && $('slotText').focus();
-    };
-    $('slotDone').onclick = () => { const c = cur(); if (!c.t && !inp.value.trim()) return toast('먼저 할 일을 넣어 주세요'); setSlot(inp.value.trim() || c.t, !c.done); tbEdit = null; route(); };
-    $('slotNext').onclick = () => {
-      const t = inp.value.trim() || cur().t; if (!t) return toast('먼저 할 일을 넣어 주세요');
-      setSlot(t, cur().done);
-      const h = Number(key.slice(0, 2)), half = key.endsWith('30'), next = half ? slotKey(h + 1, 0) : slotKey(h, 1);
-      if (h + (half ? 1 : 0) >= tbRange().to) { tbEdit = null; return route(); }
-      upd(d => { if (!d.slots[next] || !d.slots[next].t) d.slots[next] = { t, done: false }; });
-      tbEdit = next; route(); $('slotText').focus();
-    };
+    const side = tbEdit.slice(0, 1), key = tbEdit.slice(2), inp = $('slotText');
+    const nextKey = kk => { const h = Number(kk.slice(0, 2)), half = kk.endsWith('30'); return h + (half ? 1 : 0) >= tbRange().to ? null : half ? slotKey(h + 1, 0) : slotKey(h, 1); };
+    const close = () => { tbEdit = null; route(); };
+    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); close(); } };
+    if (side === 'p') {
+      const setSlot = t => upd(d => {
+        const f = tbFixed()[key], old = d.slots[key];
+        if (old && old.done && old.t && !(d.actual || {})[key]) { d.actual = d.actual || {}; d.actual[key] = old.t; }   // 예전 '했어요'는 한 일로 옮겨요
+        if (t && f && t === f) delete d.slots[key];          // 고정 그대로면 따로 저장하지 않아요
+        else if (t) d.slots[key] = { t };
+        else if (f) d.slots[key] = { t: '', skip: true };     // 고정 칸을 오늘만 비우기
+        else delete d.slots[key];
+      });
+      const cur = () => (tbSlot(tbGet(k), key) || { t: '' }).t;
+      inp.oninput = () => setSlot(inp.value.trim());
+      document.querySelectorAll('[data-pick]').forEach(c => c.onclick = () => { setSlot(c.dataset.pick); close(); });
+      $('slotOk').onclick = () => { setSlot(inp.value.trim()); close(); };
+      $('slotDel').onclick = () => { setSlot(''); close(); };
+      $('slotPin').onclick = () => {
+        const fx = { ...tbFixed() };
+        if (fx[key]) { delete fx[key]; setStamped('tbFixed', fx); toast('매일 고정을 풀었어요'); }
+        else { const t = inp.value.trim() || cur(); if (!t) return toast('먼저 할 일을 넣어 주세요'); fx[key] = t; setStamped('tbFixed', fx); upd(d => { delete d.slots[key]; }); toast('매일 이 시간에 고정했어요'); }
+        route(); $('slotText') && $('slotText').focus();
+      };
+      $('slotNext').onclick = () => {
+        const t = inp.value.trim() || cur(); if (!t) return toast('먼저 할 일을 넣어 주세요');
+        setSlot(t); const nk = nextKey(key); if (!nk) return close();
+        upd(d => { const n = tbSlot(d, nk); if (!n || !n.t) d.slots[nk] = { t }; });
+        tbEdit = 'p:' + nk; route(); $('slotText').focus();
+      };
+    } else {
+      const setAct = t => upd(d => { d.actual = d.actual || {}; const old = d.slots[key]; if (old && old.done) { delete old.done; } if (t) d.actual[key] = t; else d.actual[key] = ''; });
+      const cur = () => tbActual(tbGet(k), key);
+      inp.oninput = () => setAct(inp.value.trim());
+      document.querySelectorAll('[data-pick]').forEach(c => c.onclick = () => { setAct(c.dataset.pick); close(); });
+      if ($('asPlan')) $('asPlan').onclick = () => { setAct((tbSlot(tbGet(k), key) || { t: '' }).t); toast('한 일에 넣었어요'); close(); };
+      $('slotOk').onclick = () => { setAct(inp.value.trim()); close(); };
+      $('slotDel').onclick = () => { setAct(''); close(); };
+      $('slotNext').onclick = () => {
+        const t = inp.value.trim() || cur(); if (!t) return toast('먼저 한 일을 적어 주세요');
+        setAct(t); const nk = nextKey(key); if (!nk) return close();
+        upd(d => { if (!tbActual(d, nk)) { d.actual = d.actual || {}; d.actual[nk] = t; } });
+        tbEdit = 'a:' + nk; route(); $('slotText').focus();
+      };
+    }
   }
 }
 
@@ -1698,7 +1740,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 45;
+const APP_VERSION = 46;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
