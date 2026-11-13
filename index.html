@@ -680,21 +680,24 @@ function viewMap() {
 
 // ---------- 타임박싱 ----------
 // 하루를 30분 칸으로 나눠, 우선순위 3가지와 브레인 덤프에서 골라 칸에 넣어요.
-let tbDay = null, tbEdit = null, tbCal = false, tbCalMonth = null;
+let tbDay = null, tbEdit = null, tbCal = false, tbCalMonth = null, tbListEdit = false;
+function tbList() { return store.get('tbChecklist', ['절', '명상']); }
 const weekday = k => '일월화수목금토'[new Date(k + 'T00:00').getDay()];
 const addDays = (k, n) => { const d = new Date(k + 'T00:00'); d.setDate(d.getDate() + n); return dkey(d); };
 function tbAll() { return store.get('timebox', {}); }
-function tbGet(k) { const d = tbAll()[k]; return d || { top: [{ t: '', done: false }, { t: '', done: false }, { t: '', done: false }], dump: '', slots: {} }; }
+function tbGet(k) { const d = tbAll()[k]; return Object.assign({ top: [{ t: '', done: false }, { t: '', done: false }, { t: '', done: false }], dump: '', slots: {}, checks: {}, memo: '' }, d || {}); }
 function tbSave(k, d) { const all = tbAll(); d.mod = Date.now(); all[k] = d; store.set('timebox', all); }
 function tbFilled(k) { const d = tbAll()[k]; return d ? Object.values(d.slots || {}).filter(x => x && x.t).length : 0; }
+function tbAny(k) { const d = tbAll()[k]; return !!d && (tbFilled(k) > 0 || d.top.some(x => x.t) || Object.values(d.checks || {}).some(Boolean) || !!(d.memo || '').trim()); }
 function tbDayText(k) {
   const d = tbAll()[k]; if (!d) return '';
   const tops = d.top.filter(x => x.t);
-  return `칸 ${tbFilled(k)}개${tops.length ? ' · 우선순위 ' + tops.filter(x => x.done).length + '/' + tops.length : ''}${tops[0] ? ' · ' + esc(tops[0].t) : ''}`;
+  const list = tbList(), ck = list.filter(n => (d.checks || {})[n]).length;
+  return `칸 ${tbFilled(k)}개${tops.length ? ' · 우선순위 ' + tops.filter(x => x.done).length + '/' + tops.length : ''}${list.length ? ' · 체크 ' + ck + '/' + list.length : ''}${tops[0] ? ' · ' + esc(tops[0].t) : ''}`;
 }
 function tbSummary() {
   const k = today(), d = tbAll()[k];
-  if (!d || (!tbFilled(k) && !d.top.some(x => x.t))) return '오늘 할 일을 다 쏟아 내고, 가장 중요한 세 가지를 골라 30분 칸에 넣어요 →';
+  if (!d || !tbAny(k)) return '오늘 할 일을 다 쏟아 내고, 가장 중요한 세 가지를 골라 30분 칸에 넣어요 →';
   return `오늘 ${tbDayText(k)} →`;
 }
 function tbRange() { return store.get('tbRange', { from: 6, to: 24 }); }
@@ -706,10 +709,10 @@ function tbCalendar(k) {
   let cells = ['일', '월', '화', '수', '목', '금', '토'].map(d => `<span class="dow">${d}</span>`).join('');
   for (let i = 0; i < first; i++) cells += '<span></span>';
   for (let d = 1; d <= last; d++) {
-    const dk = `${y}-${pad(m + 1)}-${pad(d)}`, has = tbFilled(dk) > 0 || (tbAll()[dk] && tbAll()[dk].top.some(x => x.t));
+    const dk = `${y}-${pad(m + 1)}-${pad(d)}`, has = tbAny(dk);
     cells += `<button type="button" data-tbpick="${dk}" class="${has ? 'has' : ''} ${dk === today() ? 'today' : ''} ${dk === k ? 'sel' : ''}" aria-label="${prettyDate(dk)}">${d}</button>`;
   }
-  const recent = Object.keys(tbAll()).filter(d => d !== k && (tbFilled(d) > 0 || tbAll()[d].top.some(x => x.t))).sort().reverse().slice(0, 7);
+  const recent = Object.keys(tbAll()).filter(d => d !== k && tbAny(d)).sort().reverse().slice(0, 7);
   return `<section class="sk" style="transform:none;display:flex;flex-direction:column;gap:12px">
     <div class="row" style="align-items:center">
       <button type="button" class="btn ghost" id="tbmPrev" aria-label="이전 달">‹</button>
@@ -765,6 +768,15 @@ function viewTimebox() {
       <input type="checkbox" class="tb-check" data-topdone="${i}" ${x.done ? 'checked' : ''} aria-label="${i + 1}번 했어요"></label>`).join('')}</div>
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
+    <div class="row"><h2 style="font-size:1.4rem">매일 체크리스트</h2>
+      <button type="button" class="btn ghost" id="tbListEdit" style="padding:0;font-size:.9rem">${tbListEdit ? '다 고쳤어요' : '항목 고치기'}</button></div>
+    ${tbListEdit ? `<div class="tb-top">${tbList().map((n, i) => `<div class="habit"><span>${esc(n)}</span><button type="button" class="btn ghost" data-rmcheck="${i}" style="padding:0 6px;margin-left:auto">빼기 ✕</button></div>`).join('')}</div>
+      <form id="addCheckForm" style="display:flex;gap:8px;align-items:center"><input class="field" id="newCheck" placeholder="예: 절 108배, 명상 10분" autocomplete="off"><button class="btn" type="submit">추가</button></form>
+      <p class="step-label">여기서 고친 목록은 모든 날에 똑같이 나와요.</p>`
+    : tbList().length ? tbList().map(n => `<label class="habit"><input type="checkbox" class="tb-check" data-check="${esc(n)}" ${d.checks[n] ? 'checked' : ''}><span style="${d.checks[n] ? 'text-decoration:line-through;color:var(--ink-soft)' : ''}">${esc(n)}</span></label>`).join('')
+    : '<p class="step-label">항목 고치기를 눌러 날마다 할 일을 넣어 보세요.</p>'}
+  </section>
+  <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
     <h2 style="font-size:1.4rem">브레인 덤프</h2>
     <p class="step-label">머릿속에 있는 할 일을 한 줄에 하나씩 다 적어요.</p>
     <textarea id="tbDump" class="tb-dump" aria-label="브레인 덤프">${esc(d.dump)}</textarea>
@@ -777,6 +789,10 @@ function viewTimebox() {
       <label>시작 <select id="tbFrom">${Array.from({ length: 12 }, (_, i) => i + 4).map(i => `<option value="${i}" ${i === r.from ? 'selected' : ''}>${i}시</option>`).join('')}</select></label>
       <label>끝 <select id="tbTo">${Array.from({ length: 10 }, (_, i) => i + 16).map(i => `<option value="${i}" ${i === r.to ? 'selected' : ''}>${i === 24 ? '밤 12시' : i === 25 ? '새벽 1시' : i + '시'}</option>`).join('')}</select></label>
     </div>
+  </section>
+  <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
+    <h2 style="font-size:1.4rem">메모</h2>
+    <textarea id="tbMemo" class="tb-dump" rows="6" placeholder="오늘 떠오른 생각, 느낀 점, 기억할 것을 자유롭게 적어요." aria-label="메모">${esc(d.memo)}</textarea>
   </section>`;
 }
 function afterTimebox() {
@@ -797,6 +813,11 @@ function afterTimebox() {
   document.querySelectorAll('[data-top]').forEach(inp => inp.oninput = () => upd(d => d.top[+inp.dataset.top].t = inp.value));
   document.querySelectorAll('[data-topdone]').forEach(cb => cb.onchange = () => { upd(d => d.top[+cb.dataset.topdone].done = cb.checked); route(); });
   $('tbDump').oninput = () => upd(d => d.dump = $('tbDump').value);
+  $('tbMemo').oninput = () => upd(d => d.memo = $('tbMemo').value);
+  $('tbListEdit').onclick = () => { tbListEdit = !tbListEdit; route(); };
+  document.querySelectorAll('[data-check]').forEach(cb => cb.onchange = () => { upd(d => { d.checks[cb.dataset.check] = cb.checked; }); route(); });
+  document.querySelectorAll('[data-rmcheck]').forEach(b => b.onclick = () => { const l = tbList(); l.splice(+b.dataset.rmcheck, 1); store.set('tbChecklist', l); route(); });
+  if ($('addCheckForm')) { $('newCheck').focus(); $('addCheckForm').onsubmit = ev => { ev.preventDefault(); const n = $('newCheck').value.trim(); if (!n) return; const l = tbList(); if (!l.includes(n)) l.push(n); store.set('tbChecklist', l); route(); }; }
   $('tbFrom').onchange = $('tbTo').onchange = () => {
     let from = +$('tbFrom').value, to = +$('tbTo').value; if (to <= from) to = from + 1;
     store.set('tbRange', { from, to }); route();
@@ -880,7 +901,7 @@ function viewTogether() {
 }
 
 // ---------- 일정 ----------
-function dayHas(k) { return entries.some(e => e.date === k) || tbFilled(k) > 0 || (map && map.checks[k] && map.checks[k].some(Boolean)) || posts.some(p => p.date === k && !p.sample); }
+function dayHas(k) { return entries.some(e => e.date === k) || tbAny(k) || (map && map.checks[k] && map.checks[k].some(Boolean)) || posts.some(p => p.date === k && !p.sample); }
 function viewCalendar() {
   const y = calMonth.getFullYear(), m = calMonth.getMonth();
   const first = new Date(y, m, 1).getDay(), last = new Date(y, m + 1, 0).getDate();
@@ -893,7 +914,7 @@ function viewCalendar() {
   const dayEntries = entries.filter(e => e.date === calSel);
   const dayChecks = map && map.checks[calSel] ? map.habits.filter((_, i) => map.checks[calSel][i]) : [];
   const dayPosts = posts.filter(p => p.date === calSel && !p.sample);
-  const tbHas = tbFilled(calSel) > 0;
+  const tbHas = tbAny(calSel);
   const empty = !dayEntries.length && !dayChecks.length && !dayPosts.length && !tbHas;
   return `
   <header style="display:flex;flex-direction:column;gap:8px"><h1>일정</h1><p class="lead">점이 찍힌 날은 마음을 들여다본 날이에요.</p></header>
@@ -909,7 +930,7 @@ function viewCalendar() {
     ${dayEntries.map(e => `<button type="button" class="sk" data-go="entry-${e.id}"><span class="card-title" style="font-size:1.1rem">${esc(e.title)}</span><p class="desc">${esc(firstLine(e))}</p></button>`).join('')}
     ${dayChecks.length ? `<p>🌿 나의 지도: ${dayChecks.map(esc).join(', ')}</p>` : ''}
     ${dayPosts.map(p => `<p>✎ ${esc(p.text)} <small class="step-label">(${p.cat})</small></p>`).join('')}
-    ${tbFilled(calSel) ? `<button type="button" class="sk" data-tbday="${calSel}"><span class="card-title" style="font-size:1.1rem">타임박싱</span><p class="desc">${tbDayText(calSel)}</p></button>` : ''}
+    ${tbHas ? `<button type="button" class="sk" data-tbday="${calSel}"><span class="card-title" style="font-size:1.1rem">타임박싱</span><p class="desc">${tbDayText(calSel)}</p></button>` : ''}
     ${empty ? '<p class="empty">이날은 남긴 기록이 없어요.</p>' : ''}
   </section>`;
 }
