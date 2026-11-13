@@ -246,36 +246,38 @@ nav.tabs button.on::after {
 
 <script>
 // ---------- 저장 ----------
-// 기록은 이 기기(휴대폰) 안에 "암호화"되어 저장됩니다. 서버로는 아무것도 보내지 않습니다.
-// 비밀번호로 만든 열쇠(PBKDF2 → AES-GCM)가 있어야만 열 수 있고, 열쇠는 메모리에만 있습니다.
+// 기록은 이 기기 안에 저장됩니다. 기본은 비밀번호 없이 바로 열려요.
+// 책장 → 앱 잠금을 켜면 비밀번호로 암호화해 저장하고, 잊었을 때 쓰는 복구 코드를 함께 만들어요.
 const BOX_KEY = 'maeum-notebook:box';
-let DB = {}, KEY = null, SALT = null, RAW = null, saveTimer = null, saveChain = Promise.resolve();
+let DB = {}, OPEN = false, LOCK = null, RAW = null, saveTimer = null, saveChain = Promise.resolve();
+// LOCK = { dataKey, raw, salt, wp, wr } : 잠금이 켜져 있을 때만 (열쇠는 메모리에만 있어요)
 const te = new TextEncoder(), td = new TextDecoder();
 const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-async function deriveKey(pw, salt) {
+const rand = n => crypto.getRandomValues(new Uint8Array(n));
+async function deriveKey(pw, salt, iterations = 310000) {
   const base = await crypto.subtle.importKey('raw', te.encode(pw), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
-async function openBox(box, key) {
-  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv) }, key, unb64(box.ct));
-  return JSON.parse(td.decode(pt));
-}
-async function sealBox() {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, KEY, te.encode(JSON.stringify(DB)));
-  return { v: 1, kdf: 'PBKDF2-SHA256-310000', salt: b64(SALT), iv: b64(iv), ct: b64(ct) };
+const aesKey = raw => crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+async function encBytes(key, bytes) { const iv = rand(12); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes); return { iv: b64(iv), ct: b64(ct) }; }
+async function decBytes(key, o) { return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(o.iv) }, key, unb64(o.ct))); }
+const encJSON = (key, obj) => encBytes(key, te.encode(JSON.stringify(obj)));
+const decJSON = async (key, o) => JSON.parse(td.decode(await decBytes(key, o)));
+async function makeBox() {
+  if (!LOCK) return { v: 2, plain: true, db: DB };
+  const c = await encJSON(LOCK.dataKey, DB);
+  return { v: 2, salt: LOCK.salt, wp: LOCK.wp, wr: LOCK.wr, iv: c.iv, ct: c.ct };
 }
 function readBox() { try { const v = localStorage.getItem(BOX_KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function writeBox(box) { localStorage.setItem(BOX_KEY, JSON.stringify(box)); }
 function saveNow() {
-  if (!KEY) return saveChain;
-  const key = KEY;
+  if (!OPEN) return saveChain;
   saveChain = saveChain.then(async () => {
-    if (KEY !== key) return;
-    const box = await sealBox();
+    if (!OPEN) return;
+    const box = await makeBox();
     writeBox(box); RAW = box;
-    scheduleSync();
+    if (!syncing) scheduleSync();
   }).catch(() => toast('저장하지 못했어요. 휴대폰 저장 공간을 확인해 주세요'));
   return saveChain;
 }
@@ -404,8 +406,8 @@ const TABS = [['home', '대화하기'], ['together', '같이해요'], ['calendar
 function route() {
   const h = (location.hash || '#home').slice(1);
   const app = document.getElementById('app');
-  document.querySelector('nav.tabs').hidden = !KEY;
-  if (!KEY) { document.getElementById('sideGo').hidden = true; app.innerHTML = viewLock(); afterLock(); return; }
+  document.querySelector('nav.tabs').hidden = !OPEN;
+  if (!OPEN) { document.getElementById('sideGo').hidden = true; app.innerHTML = viewLock(); afterLock(); return; }
   if (h === 'sync') { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSync(); afterSync(); return; }
   if (h === 'security') { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSecurity(); afterSecurity(); return; }
   const base = h.startsWith('ex-') || h === 'map' ? 'home' : h.startsWith('entry-') ? 'shelf' : h;
@@ -613,7 +615,7 @@ function viewMap() {
     <header style="display:flex;flex-direction:column;gap:12px"><h1>나의 지도</h1>
       <p class="lead">목표 하나, 꾸준히 할 것 서너 가지. 한 날 하나씩 잎이 돋아요.</p>
       ${map ? '' : `<p>목표 하나를 정하고, 그걸 이루려면 꾸준히 할 것을 서너 가지 적어요. 한 날 하나씩 “오늘 했어요”를 누르면 나무에 잎이 돋아요.</p>
-      <p class="step-label">나의 지도는 비밀번호로 잠가 이 휴대폰에만 남아요. 나만 볼 수 있어요.</p>`}</header>
+      <p class="step-label">나의 지도는 이 휴대폰에만 남아요. 기기 연결을 하면 태블릿에서도 이어 가요.</p>`}</header>
     ${map ? '' : `<section class="sk" style="transform:none">
       <p class="map-eyebrow">보기 · 한 달쯤 지난 지도</p><p class="map-goal">${SAMPLE_MAP.goal}</p>
       ${treeSVG(SAMPLE_MAP.habits, SAMPLE_MAP.counts)}</section>`}
@@ -751,8 +753,8 @@ function viewShelf() {
   const list = sample ? [SAMPLE_ENTRY] : entries;
   return `
   <header style="display:flex;flex-direction:column;gap:8px"><h1>책장</h1>
-    <p class="lead">${sample ? '아직 꽂힌 기록이 없어요. 아래는 예시예요. 대화하기에서 카드를 하나 골라 써 보세요.' : `기록 ${entries.length}권. 비밀번호로 잠가 이 휴대폰에만 저장해 두었어요.`}</p>
-    <div class="tools"><button type="button" class="btn" id="lockNow">지금 잠그기</button><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label><button type="button" class="btn ghost" data-go="sync">기기 연결${DB.sync ? ' ✓' : ''}</button><button type="button" class="btn ghost" data-go="security">비밀번호 바꾸기</button></div>
+    <p class="lead">${sample ? '아직 꽂힌 기록이 없어요. 아래는 예시예요. 대화하기에서 카드를 하나 골라 써 보세요.' : `기록 ${entries.length}권. 이 기기에 저장돼 있어요.`}</p>
+    <div class="tools"><button type="button" class="btn" data-go="sync">기기 연결${DB.sync ? ' ✓' : ''}</button><button type="button" class="btn" id="backupNow">백업 파일 저장</button><label class="btn ghost" for="restoreFile2">백업 불러오기</label><button type="button" class="btn ghost" data-go="security">${LOCK ? '앱 잠금 ✓' : '앱 잠금 켜기'}</button>${LOCK ? '<button type="button" class="btn ghost" id="lockNow">지금 잠그기</button>' : ''}${installEvt && !standalone() ? '<button type="button" class="btn ghost" id="installBtn">홈 화면에 설치</button>' : ''}</div>
     <input type="file" id="restoreFile2" accept=".json,application/json" hidden>
     <p class="step-label">${lastBackupText()} · 휴대폰을 바꾸거나 앱을 지우면 기록도 사라지니, 가끔 백업 파일을 저장해 두세요.</p></header>
   <div class="list">${list.map(e => `
@@ -932,7 +934,7 @@ function afterRender(h) {
     $('mPrev').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); route(); };
     $('mNext').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); route(); };
   }
-  if (h === 'shelf' && $('lockNow')) { $('lockNow').onclick = lockApp; $('backupNow').onclick = downloadBackup; $('restoreFile2').onchange = () => restoreFrom($('restoreFile2').files[0]); }
+  if (h === 'shelf' && $('backupNow')) { if ($('lockNow')) $('lockNow').onclick = lockApp; bindInstall(); $('backupNow').onclick = downloadBackup; $('restoreFile2').onchange = () => restoreFrom($('restoreFile2').files[0]); }
   if (h.startsWith('entry-')) {
     const id = h.slice(6), e = entries.find(x => x.id === id);
     if ($('delE')) $('delE').onclick = () => {
@@ -956,148 +958,191 @@ document.addEventListener('click', ev => {
 });
 document.getElementById('sideGo').onclick = () => go('together');
 window.addEventListener('hashchange', route);
-// ---------- 잠금 ----------
-let lockMode = 'loading', lockErr = '', lockNote = '', fails = 0, waitUntil = 0, carryDB = null, pendingSync = null;
+// ---------- 잠금 (앱 잠금을 켰을 때만) ----------
+let lockMode = 'loading', lockErr = '', lockNote = '', fails = 0, waitUntil = 0, resetArmed = false, shownCode = '';
 function loadState() {
   entries = store.get('entries', []);
   map = store.get('map', null);
   posts = store.get('posts', null) || SAMPLE_POSTS;
 }
+function openApp() { OPEN = true; lockErr = ''; lockNote = ''; loadState(); touch(); route(); syncNow(); }
+function startFromBox() {
+  RAW = readBox();
+  if (!RAW) { DB = {}; LOCK = null; return openApp(); }
+  if (RAW.plain) { DB = RAW.db || {}; LOCK = null; return openApp(); }
+  OPEN = false; lockMode = 'unlock'; route();
+}
+function newRecoveryCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = rand(20); let c = '';
+  for (let i = 0; i < 20; i++) { c += A[r[i] % 32]; if (i % 4 === 3 && i < 19) c += '-'; }
+  return c;
+}
+const normCode = c => c.toUpperCase().replace(/[^A-Z0-9]/g, '');
+async function wrapWithPassword(pw) { const salt = rand(16); LOCK.salt = b64(salt); LOCK.wp = await encBytes(await deriveKey(pw, salt), LOCK.raw); }
+async function makeRecovery() { const code = newRecoveryCode(), salt = rand(16); LOCK.wr = { salt: b64(salt), ...(await encBytes(await deriveKey(normCode(code), salt), LOCK.raw)) }; return code; }
+async function turnLockOn(pw) {
+  const raw = rand(32); LOCK = { raw, dataKey: await aesKey(raw) };
+  await wrapWithPassword(pw); const code = await makeRecovery(); await saveNow(); return code;
+}
+async function checkPassword(pw) { try { await decBytes(await deriveKey(pw, unb64(LOCK.salt)), LOCK.wp); return true; } catch (e) { return false; } }
+async function unlockWith(raw) { LOCK = { raw, dataKey: await aesKey(raw), salt: RAW.salt, wp: RAW.wp, wr: RAW.wr }; DB = await decJSON(LOCK.dataKey, RAW); }
+
 function viewLock() {
   const logo = '<img class="lock-logo" src="./icon-192.png" alt="">';
+  const err = `<p class="err" id="lockErr">${esc(lockErr)}</p>`;
   if (lockMode === 'loading') return `<div class="lock">${logo}<p class="lead">여는 중…</p></div>`;
   if (lockMode === 'nostore') return `<div class="lock">${logo}<h1>마음 공책</h1>
     <p class="lead">이 브라우저에서는 기록을 저장할 수 없어요. 시크릿 창이라면 일반 창에서 열어 주세요.</p></div>`;
-  if (lockMode === 'setup') return `<div class="lock">${logo}<h1>마음 공책</h1>
-    <p class="lead">나만 열 수 있게 비밀번호를 정해요.</p>
+  if (lockMode === 'recover') return `<div class="lock">${logo}<h1>복구 코드로 열기</h1>
+    <p class="lead">앱 잠금을 켤 때 받은 복구 코드를 넣어요.</p>
     <form id="lockForm" class="sk" style="transform:none">
-      <label>비밀번호 (4자 이상)<input class="field" id="pw1" type="password" autocomplete="new-password" minlength="4" required autofocus></label>
-      <label>한 번 더<input class="field" id="pw2" type="password" autocomplete="new-password" minlength="4" required></label>
-      <p class="warn">기록은 이 비밀번호로 암호화돼요. 잊어버리면 아무도(저도) 기록을 되살릴 수 없으니 꼭 기억해 두세요.</p>
-      <p class="err" id="lockErr">${esc(lockErr)}</p>
-      <button class="btn primary" type="submit">시작하기</button>
-    </form>
-    <div class="tools" style="justify-content:center"><button type="button" class="btn" id="joinBtn">다른 기기에서 쓰던 공책 이어 쓰기</button><label class="btn ghost" for="restoreFile">백업 파일로 시작하기</label></div>
-    <input type="file" id="restoreFile" accept=".json,application/json" hidden>
-    ${installBtn()}</div>`;
-  if (lockMode === 'join') return `<div class="lock">${logo}<h1>이어 쓰기</h1>
-    <p class="lead">휴대폰(또는 다른 기기)에서 연결할 때 쓴 GitHub 열쇠를 넣어요.</p>
-    <form id="joinForm" class="sk" style="transform:none">
-      <label>GitHub 열쇠 (ghp_로 시작)<input class="field" id="joinToken" autocomplete="off" spellcheck="false" required></label>
-      <p class="err" id="lockErr">${esc(lockErr)}</p>
-      <button class="btn primary" type="submit">공책 찾기</button>
-    </form>
-    <button type="button" class="btn ghost" id="joinBack">← 돌아가기</button></div>`;
+      <label>복구 코드<input class="field" id="pw1" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" required></label>${err}
+      <button class="btn primary" type="submit">열기</button></form>
+    <div class="tools" style="justify-content:center"><button type="button" class="btn ghost" data-lock="unlock">← 비밀번호로 열기</button><button type="button" class="btn ghost" data-lock="reset">복구 코드도 없어요</button></div></div>`;
+  if (lockMode === 'newpw') return `<div class="lock">${logo}<h1>열렸어요</h1>
+    <p class="lead">새 비밀번호를 정하거나, 잠금 없이 쓸 수 있어요.</p>
+    <form id="lockForm" class="sk" style="transform:none">
+      <label>새 비밀번호 (4자 이상)<input class="field" id="pw1" type="password" autocomplete="new-password" minlength="4" required></label>
+      <label>한 번 더<input class="field" id="pw2" type="password" autocomplete="new-password" minlength="4" required></label>${err}
+      <button class="btn primary" type="submit">새 비밀번호로 잠그기</button></form>
+    <button type="button" class="btn" id="noLockBtn">잠금 없이 쓰기</button></div>`;
+  if (lockMode === 'reset') return `<div class="lock">${logo}<h1>새로 시작하기</h1>
+    <p class="lead">이 기기의 공책을 지우고, 비밀번호 없이 처음부터 시작해요.</p>
+    <p class="warn">기기 연결을 해 두었다면 새로 시작한 뒤 책장 → 기기 연결에서 같은 GitHub 열쇠를 넣으면 기록을 다시 받아 올 수 있어요. 연결하지 않았다면 이 기기의 기록은 사라져요.</p>
+    <button type="button" class="btn primary" id="resetBtn">${resetArmed ? '정말 지울까요? 한 번 더 누르세요' : '지우고 새로 시작'}</button>
+    <button type="button" class="btn ghost" data-lock="unlock">← 돌아가기</button></div>`;
+  const old = RAW && RAW.v === 1;
   return `<div class="lock">${logo}<h1>마음 공책</h1>
-    ${lockNote ? `<p class="lead">${esc(lockNote)}</p>` : ''}
+    ${old ? '<p class="lead">전에 정한 비밀번호를 한 번만 넣어 주세요. 다음부터는 비밀번호 없이 바로 열려요.</p>' : lockNote ? `<p class="lead">${esc(lockNote)}</p>` : ''}
     <form id="lockForm" class="sk" style="transform:none">
-      <label>비밀번호<input class="field" id="pw1" type="password" autocomplete="current-password" required autofocus></label>
-      <p class="err" id="lockErr">${esc(lockErr)}</p>
-      <button class="btn primary" type="submit">열기</button>
-    </form>${installBtn()}</div>`;
+      <label>비밀번호<input class="field" id="pw1" type="password" autocomplete="current-password" required></label>${err}
+      <button class="btn primary" type="submit">열기</button></form>
+    <div class="tools" style="justify-content:center"><button type="button" class="btn ghost" data-lock="${RAW && RAW.wr ? 'recover' : 'reset'}">비밀번호를 잊었어요</button></div>
+    ${installBtn()}</div>`;
 }
 function afterLock() {
   bindInstall();
-  const jb = document.getElementById('joinBtn'); if (jb) jb.onclick = () => { lockMode = 'join'; lockErr = ''; route(); };
-  const jbk = document.getElementById('joinBack'); if (jbk) jbk.onclick = () => { lockMode = RAW && RAW.ct ? 'unlock' : 'setup'; lockErr = ''; route(); };
-  const jf = document.getElementById('joinForm');
-  if (jf) {
-    document.getElementById('joinToken').focus();
-    jf.onsubmit = async ev => {
-      ev.preventDefault();
-      const btn = jf.querySelector('button[type=submit]'), errEl = document.getElementById('lockErr');
-      const token = document.getElementById('joinToken').value.trim();
-      btn.disabled = true; btn.textContent = '찾는 중…';
-      try {
-        const cfg = { token, gistId: null };
-        const box = await gistRead(cfg);
-        if (!box) throw '이 열쇠로 연결된 공책이 없어요. 먼저 쓰던 기기의 책장 → 기기 연결에서 연결해 주세요.';
-        writeBox(box); RAW = box; pendingSync = cfg;
-        lockMode = 'unlock'; lockErr = ''; lockNote = '공책을 찾았어요. 쓰던 기기의 비밀번호로 열어 주세요.'; route();
-      } catch (m) {
-        errEl.textContent = typeof m === 'string' ? m : (m && m.message) || '찾지 못했어요. 인터넷 연결을 확인해 주세요';
-        btn.disabled = false; btn.textContent = '공책 찾기';
-      }
-    };
-    return;
-  }
-  const rf = document.getElementById('restoreFile');
-  if (rf) rf.onchange = () => restoreFrom(rf.files[0]);
+  document.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => { lockMode = b.dataset.lock; lockErr = ''; resetArmed = false; route(); });
+  const rb = document.getElementById('resetBtn');
+  if (rb) rb.onclick = () => {
+    if (!resetArmed) { resetArmed = true; return route(); }
+    try { localStorage.removeItem(BOX_KEY); } catch (e) {}
+    resetArmed = false; LOCK = null; DB = {}; toast('새 공책을 시작했어요'); go('home'); startFromBox();
+  };
+  const nl = document.getElementById('noLockBtn');
+  if (nl) nl.onclick = async () => { LOCK = null; OPEN = true; await saveNow(); toast('이제 비밀번호 없이 열려요'); openApp(); };
   const f = document.getElementById('lockForm'); if (!f) return;
   const pw1 = document.getElementById('pw1'); pw1.focus();
   f.onsubmit = async ev => {
     ev.preventDefault();
-    const btn = f.querySelector('button[type=submit]'), errEl = document.getElementById('lockErr');
+    const btn = f.querySelector('button[type=submit]'), errEl = document.getElementById('lockErr'), label = btn.textContent;
     const showErr = m => { lockErr = m; errEl.textContent = m; };
     if (Date.now() < waitUntil) return showErr(`잠시 뒤에 다시 해 주세요 (${Math.ceil((waitUntil - Date.now()) / 1000)}초)`);
     btn.disabled = true; btn.textContent = '여는 중…';
+    const wrong = m => { fails++; if (fails >= 5) { waitUntil = Date.now() + 30000; fails = 0; } return m; };
     try {
-      if (lockMode === 'setup') {
+      if (lockMode === 'newpw') {
         const pw2 = document.getElementById('pw2').value;
         if (pw1.value.length < 4) throw '4자 이상으로 정해 주세요';
         if (pw1.value !== pw2) throw '두 비밀번호가 달라요';
-        SALT = crypto.getRandomValues(new Uint8Array(16));
-        KEY = await deriveKey(pw1.value, SALT);
-        DB = RAW && !RAW.ct ? RAW : {};   // 잠금 전 버전에서 쓴 기록은 그대로 옮겨 암호화
-        await saveNow();
-      } else {
-        const salt = unb64(RAW.salt), key = await deriveKey(pw1.value, salt);
-        try { DB = await openBox(RAW, key); } catch (e) {
-          fails++; if (fails >= 5) { waitUntil = Date.now() + 30000; fails = 0; }
-          throw '비밀번호가 맞지 않아요';
-        }
-        SALT = salt; KEY = key; fails = 0;
-        if (carryDB) { DB = mergeDB(carryDB, DB); carryDB = null; await saveNow(); }
-        if (pendingSync) { if (!DB.sync) DB.sync = pendingSync; pendingSync = null; await saveNow(); }
+        await wrapWithPassword(pw1.value); OPEN = true; await saveNow(); toast('새 비밀번호로 잠갔어요'); return openApp();
       }
-      lockErr = ''; lockNote = ''; loadState(); touch(); route(); syncNow();
+      if (lockMode === 'recover') {
+        let raw; try { raw = await decBytes(await deriveKey(normCode(pw1.value), unb64(RAW.wr.salt)), RAW.wr); } catch (e) { throw wrong('복구 코드가 맞지 않아요'); }
+        await unlockWith(raw); fails = 0; lockMode = 'newpw'; lockErr = ''; return route();
+      }
+      if (RAW.v === 1) {   // 예전 방식(비밀번호 필수)으로 잠긴 공책 → 열고 나서 잠금 없이 바꿔요
+        try { DB = await decJSON(await deriveKey(pw1.value, unb64(RAW.salt)), RAW); } catch (e) { throw wrong('비밀번호가 맞지 않아요'); }
+        LOCK = null; OPEN = true; fails = 0; await saveNow(); toast('이제 비밀번호 없이 열려요'); return openApp();
+      }
+      let raw; try { raw = await decBytes(await deriveKey(pw1.value, unb64(RAW.salt)), RAW.wp); } catch (e) { throw wrong('비밀번호가 맞지 않아요'); }
+      await unlockWith(raw); fails = 0; openApp();
     } catch (m) {
-      KEY = null; btn.disabled = false; btn.textContent = lockMode === 'setup' ? '시작하기' : '열기';
-      showErr(typeof m === 'string' ? m : '열지 못했어요. 프로그램을 껐다 켜 주세요'); pw1.select();
+      btn.disabled = false; btn.textContent = label;
+      showErr(typeof m === 'string' ? m : '열지 못했어요. 앱을 껐다 켜 주세요'); pw1.select();
     }
   };
 }
 async function lockApp() {
+  if (!LOCK) return;
   clearTimeout(saveTimer); await saveNow();
-  KEY = null; SALT = null; DB = {}; entries = []; map = null; posts = SAMPLE_POSTS; run = null; query = '';
-  syncNeedPw = null; lockMode = 'unlock'; lockErr = ''; lockNote = ''; route();
+  OPEN = false; LOCK = null; DB = {}; entries = []; map = null; posts = SAMPLE_POSTS; run = null; query = '';
+  RAW = readBox(); lockMode = 'unlock'; lockErr = ''; lockNote = ''; route();
 }
-// 5분 동안 손대지 않으면 자동으로 잠급니다.
+// 앱 잠금을 켰을 때만, 5분 동안 손대지 않으면 다시 잠가요.
 const IDLE_MS = 5 * 60 * 1000; let lastTouch = Date.now();
 function touch() { lastTouch = Date.now(); }
 ['pointerdown', 'keydown', 'scroll'].forEach(t => window.addEventListener(t, touch, { passive: true }));
-setInterval(() => { if (KEY && Date.now() - lastTouch > IDLE_MS) lockApp(); }, 15000);
+setInterval(() => { if (OPEN && LOCK && Date.now() - lastTouch > IDLE_MS) lockApp(); }, 15000);
 
+// ---------- 앱 잠금 설정 ----------
 function viewSecurity() {
-  return `<button type="button" class="back" data-go="shelf">← 책장으로</button>
-  <header style="display:flex;flex-direction:column;gap:8px"><h1>비밀번호 바꾸기</h1>
-    <p class="lead">새 비밀번호로 기록 전체를 다시 잠가요.</p></header>
-  <form id="secForm" class="sk" style="transform:none;display:flex;flex-direction:column;gap:14px">
-    <label>지금 비밀번호<input class="field" id="sp0" type="password" autocomplete="current-password" required></label>
-    <label>새 비밀번호 (4자 이상)<input class="field" id="sp1" type="password" autocomplete="new-password" minlength="4" required></label>
-    <label>새 비밀번호 한 번 더<input class="field" id="sp2" type="password" autocomplete="new-password" minlength="4" required></label>
+  const head = `<button type="button" class="back" data-go="shelf">← 책장으로</button>
+  <header style="display:flex;flex-direction:column;gap:8px"><h1>앱 잠금</h1>
+    <p class="lead">${LOCK ? '잠금이 켜져 있어요. 열 때마다 비밀번호를 물어보고, 5분 동안 쓰지 않으면 다시 잠겨요.' : '지금은 비밀번호 없이 바로 열려요. 휴대폰을 다른 사람과 같이 쓴다면 잠금을 켜 두세요.'}</p></header>`;
+  const pw = (id, label, auto) => `<label>${label}<input class="field" id="${id}" type="password" autocomplete="${auto}" required></label>`;
+  if (shownCode) return head + `
+  <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:1.4rem">복구 코드</h2>
+    <p>비밀번호를 잊었을 때 이 코드로 열 수 있어요. <b>캡처하거나 종이에 적어 두세요.</b> 이 화면을 닫으면 다시 볼 수 없어요.</p>
+    <p style="font-size:1.35rem;font-weight:700;letter-spacing:.06em;text-align:center;padding:14px;border:2px dashed var(--line);border-radius:10px;overflow-wrap:anywhere">${shownCode}</p>
+    <div class="actions"><button type="button" class="btn" id="copyCode">복사</button><button type="button" class="btn primary" id="codeDone">적어 두었어요</button></div>
+  </section>`;
+  if (!LOCK) return head + `
+  <form class="sk" id="lockOnForm" style="transform:none;display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:1.4rem">잠금 켜기</h2>
+    ${pw('lp1', '비밀번호 (4자 이상)', 'new-password')}${pw('lp2', '한 번 더', 'new-password')}
+    <p class="step-label">켜면 비밀번호를 잊었을 때 쓰는 복구 코드를 함께 드려요.</p>
     <p class="err" id="secErr" style="color:#b4472f;min-height:1.4em"></p>
+    <div class="actions"><span></span><button class="btn primary" type="submit">잠금 켜기</button></div>
+  </form>`;
+  return head + `
+  <form class="sk" id="pwForm" style="transform:none;display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:1.4rem">비밀번호 바꾸기</h2>
+    ${pw('sp0', '지금 비밀번호', 'current-password')}${pw('sp1', '새 비밀번호 (4자 이상)', 'new-password')}${pw('sp2', '새 비밀번호 한 번 더', 'new-password')}
+    <p class="err" id="pwErr" style="color:#b4472f;min-height:1.4em"></p>
     <div class="actions"><span></span><button class="btn primary" type="submit">바꾸기</button></div>
+  </form>
+  <form class="sk" id="moreForm" style="transform:none;display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:1.4rem">잠금 끄기 · 복구 코드</h2>
+    ${pw('mp0', '지금 비밀번호', 'current-password')}
+    <p class="err" id="moreErr" style="color:#b4472f;min-height:1.4em"></p>
+    <div class="actions"><button type="button" class="btn" id="newCode">복구 코드 새로 만들기</button><button type="button" class="btn primary" id="lockOff">잠금 끄기</button></div>
   </form>`;
 }
 function afterSecurity() {
-  const f = document.getElementById('secForm'), err = document.getElementById('secErr');
-  f.onsubmit = async ev => {
+  const $ = id => document.getElementById(id);
+  if ($('copyCode')) $('copyCode').onclick = () => navigator.clipboard.writeText(shownCode).then(() => toast('복사했어요'), () => toast('복사가 막혀 있어요. 직접 적어 두세요'));
+  if ($('codeDone')) $('codeDone').onclick = () => { shownCode = ''; go('shelf'); };
+  if ($('lockOnForm')) $('lockOnForm').onsubmit = async ev => {
     ev.preventDefault();
-    const [a, b, c] = ['sp0', 'sp1', 'sp2'].map(id => document.getElementById(id).value);
-    if (b.length < 4) { err.textContent = '새 비밀번호는 4자 이상으로 정해 주세요'; return; }
-    if (b !== c) { err.textContent = '새 비밀번호 두 개가 달라요'; return; }
-    try { await saveNow(); await openBox(RAW, await deriveKey(a, SALT)); } catch (e) { err.textContent = '지금 비밀번호가 맞지 않아요'; return; }
-    SALT = crypto.getRandomValues(new Uint8Array(16)); KEY = await deriveKey(b, SALT);
-    await saveNow(); toast('비밀번호를 바꿨어요'); go('shelf');
+    const a = $('lp1').value, b = $('lp2').value;
+    if (a.length < 4) { $('secErr').textContent = '4자 이상으로 정해 주세요'; return; }
+    if (a !== b) { $('secErr').textContent = '두 비밀번호가 달라요'; return; }
+    shownCode = await turnLockOn(a); toast('앱 잠금을 켰어요'); route();
   };
+  if ($('pwForm')) $('pwForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const [a, b, c] = ['sp0', 'sp1', 'sp2'].map(id => $(id).value);
+    if (b.length < 4) { $('pwErr').textContent = '새 비밀번호는 4자 이상으로 정해 주세요'; return; }
+    if (b !== c) { $('pwErr').textContent = '새 비밀번호 두 개가 달라요'; return; }
+    if (!(await checkPassword(a))) { $('pwErr').textContent = '지금 비밀번호가 맞지 않아요'; return; }
+    await wrapWithPassword(b); await saveNow(); toast('비밀번호를 바꿨어요'); go('shelf');
+  };
+  const needPw = async () => { const ok = await checkPassword($('mp0').value); if (!ok) $('moreErr').textContent = '지금 비밀번호가 맞지 않아요'; return ok; };
+  if ($('newCode')) $('newCode').onclick = async () => { if (!(await needPw())) return; shownCode = await makeRecovery(); await saveNow(); route(); };
+  if ($('lockOff')) $('lockOff').onclick = async () => { if (!(await needPw())) return; LOCK = null; await saveNow(); toast('이제 비밀번호 없이 열려요'); go('shelf'); };
+  if ($('moreForm')) $('moreForm').onsubmit = ev => ev.preventDefault();
 }
 
 // ---------- 기기 연결 (GitHub 비밀 gist로 휴대폰·태블릿 맞추기) ----------
 // 올라가는 것은 비밀번호로 암호화된 상자뿐이라 GitHub도 내용을 읽을 수 없어요.
 const GIST_FILE = 'maeum-notebook.json', GIST_DESC = '마음 공책 기기 연결 (암호화됨)';
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=maeum-notebook';
-let syncing = false, syncAgain = false, syncTimer = null, lastSync = 0, syncErr = '', syncNeedPw = null;
+let syncing = false, syncAgain = false, syncTimer = null, lastSync = 0, syncErr = '';
+// GitHub에 올리는 공책은 GitHub 열쇠로 만든 암호 열쇠로 잠가요. 열쇠를 아는 내 기기만 열 수 있어요.
+const syncKeys = {};
+async function syncKey(token) { return syncKeys[token] || (syncKeys[token] = await deriveKey(token, te.encode('maeum-notebook-sync-v1'), 150000)); }
 async function gh(token, path, opt = {}) {
   const r = await fetch('https://api.github.com' + path, { ...opt, cache: 'no-store', headers: {
     Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, ...(opt.body ? { 'Content-Type': 'application/json' } : {}) } });
@@ -1164,26 +1209,21 @@ function mergeDB(a, b) {
   out.sync = a.sync || b.sync;
   return out;
 }
-function scheduleSync() { if (!KEY || !DB.sync) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 2500); }
+function scheduleSync() { if (!OPEN || !DB.sync) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 2500); }
 async function syncNow() {
-  const cfg = DB.sync; if (!KEY || !cfg || !cfg.token) return;
+  const cfg = DB.sync; if (!OPEN || !cfg || !cfg.token) return;
   if (syncing) { syncAgain = true; return; }
   syncing = true;
   try {
-    const before = JSON.stringify(DB);
+    const before = JSON.stringify(DB), key = await syncKey(cfg.token);
     const remote = await gistRead(cfg);
-    if (remote && remote.ct) {
-      let rdb = null;
-      if (remote.salt === b64(SALT)) { try { rdb = await openBox(remote, KEY); } catch (e) {} }
-      if (!rdb) {   // 다른 기기에서 비밀번호를 바꿨어요 → 새 비밀번호로 다시 열고 합쳐요
-        carryDB = DB; writeBox(remote); RAW = remote;
-        KEY = null; SALT = null; run = null; lockMode = 'unlock'; lockErr = '';
-        lockNote = '다른 기기에서 비밀번호를 바꿨어요. 새 비밀번호로 열어 주세요.'; route(); return;
-      }
+    if (remote && remote.v === 3) {
+      let rdb; try { rdb = await decJSON(key, remote); } catch (e) { throw new Error('GitHub의 공책을 열지 못했어요. 다른 열쇠로 올린 공책일 수 있어요'); }
       DB = mergeDB(DB, rdb); loadState();
     }
-    const box = await sealBox(); writeBox(box); RAW = box;
-    await gistWrite(cfg, box);
+    await saveNow();
+    const c = await encJSON(key, DB);
+    await gistWrite(cfg, { v: 3, iv: c.iv, ct: c.ct });
     lastSync = Date.now(); syncErr = '';
     const h = (location.hash || '#home').slice(1);
     const typing = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
@@ -1196,22 +1236,14 @@ async function syncNow() {
     if (syncAgain) { syncAgain = false; setTimeout(syncNow, 500); }
   }
 }
-setInterval(() => { if (KEY && DB.sync && document.visibilityState === 'visible') syncNow(); }, 60000);
+setInterval(() => { if (OPEN && DB.sync && document.visibilityState === 'visible') syncNow(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
 
 function viewSync() {
   const cfg = DB.sync;
   const head = `<button type="button" class="back" data-go="shelf">← 책장으로</button>
   <header style="display:flex;flex-direction:column;gap:8px"><h1>기기 연결</h1>
-    <p class="lead">휴대폰과 태블릿에서 같은 공책을 이어 써요. 기록은 비밀번호로 암호화된 채로 내 GitHub에 올라가서, GitHub도 내용을 읽을 수 없어요.</p></header>`;
-  if (syncNeedPw) return head + `
-  <form class="sk" id="mergeForm" style="transform:none;display:flex;flex-direction:column;gap:14px">
-    <h2 style="font-size:1.4rem">이미 쓰던 공책이 있어요</h2>
-    <p>다른 기기에서 먼저 연결한 공책을 찾았어요. 그 공책의 비밀번호를 넣으면 두 공책을 하나로 합쳐요. 이 기기의 비밀번호도 그 비밀번호로 바뀌어요.</p>
-    <label>그 공책의 비밀번호<input class="field" id="mergePw" type="password" autocomplete="current-password" required></label>
-    <p class="err" id="mergeErr" style="color:#b4472f;min-height:1.4em"></p>
-    <div class="actions"><button type="button" class="btn ghost" id="mergeCancel">그만두기</button><button class="btn primary" type="submit">합치기</button></div>
-  </form>`;
+    <p class="lead">휴대폰과 태블릿에서 같은 공책을 이어 써요. 기록은 GitHub 열쇠로 잠긴 채 내 GitHub에 올라가서, GitHub도 내용을 읽을 수 없어요.</p></header>`;
   if (cfg) return head + `
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:12px">
     <div class="row"><h2 style="font-size:1.4rem">연결됨 ✓</h2><span class="meta">${syncing ? '맞추는 중…' : lastSync ? '마지막으로 맞춘 때 ' + new Date(lastSync).toTimeString().slice(0, 5) : ''}</span></div>
@@ -1223,8 +1255,8 @@ function viewSync() {
     <h2 style="font-size:1.4rem">태블릿(다른 기기)에서 이어 쓰기</h2>
     <ol style="margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px">
       <li>태블릿 크롬으로 이 앱 주소를 열어요.</li>
-      <li>첫 화면에서 <b>다른 기기에서 쓰던 공책 이어 쓰기</b>를 눌러요.</li>
-      <li>이 기기에 넣었던 GitHub 열쇠를 넣고, 같은 비밀번호로 열어요.</li>
+      <li>아래 <b>책장 → 기기 연결</b>로 들어가요.</li>
+      <li>아래 버튼으로 복사한 GitHub 열쇠를 붙여 넣고 <b>연결하기</b>를 눌러요. 두 기기의 기록이 합쳐져요.</li>
     </ol>
     <div class="tools"><button type="button" class="btn" id="copyToken">GitHub 열쇠 복사</button></div>
   </section>`;
@@ -1237,8 +1269,9 @@ function viewSync() {
       <li>맨 아래 <b>Generate token</b>을 누르고, 나온 <code>ghp_…</code> 글자를 복사해요.</li>
       <li>아래 칸에 붙여 넣고 <b>연결하기</b>를 눌러요.</li>
     </ol>
+    <p class="step-label">태블릿이 두 번째 기기라면, 첫 기기에서 <b>GitHub 열쇠 복사</b>로 같은 열쇠를 가져와 넣으면 돼요. 새로 만들 필요 없어요.</p>
     <label>GitHub 열쇠<input class="field" id="linkToken" autocomplete="off" spellcheck="false" placeholder="ghp_…" required></label>
-    <p class="warn" style="font-size:.88rem;color:var(--ink-soft)">이 열쇠는 비밀번호처럼 다뤄요. 다른 사람에게 보여 주지 마세요. 열쇠는 이 공책 안에 암호화되어 저장돼요.</p>
+    <p class="warn" style="font-size:.88rem;color:var(--ink-soft)">이 열쇠는 비밀번호처럼 다뤄요. 다른 사람에게 보여 주지 마세요. 열쇠를 아는 기기만 공책을 열 수 있어요.</p>
     <p class="err" id="linkErr" style="color:#b4472f;min-height:1.4em"></p>
     <div class="actions"><span></span><button class="btn primary" type="submit">연결하기</button></div>
   </form>`;
@@ -1250,24 +1283,13 @@ function afterSync() {
     const btn = $('linkForm').querySelector('button[type=submit]'), cfg = { token: $('linkToken').value.trim(), gistId: null };
     btn.disabled = true; btn.textContent = '연결하는 중…';
     try {
-      const remote = await gistRead(cfg);
-      if (remote && remote.ct && remote.salt !== b64(SALT)) { syncNeedPw = { cfg, remote }; return route(); }
-      store.set('sync', cfg); await saveNow(); await syncNow(); toast('연결했어요'); route();
-    } catch (e) { $('linkErr').textContent = (e && e.message) || '연결하지 못했어요'; btn.disabled = false; btn.textContent = '연결하기'; }
+      await gistRead(cfg);   // 열쇠가 맞는지, 이미 올린 공책이 있는지 확인
+      store.set('sync', cfg); await saveNow(); syncErr = '';
+      await syncNow();
+      if (syncErr) throw new Error(syncErr);
+      toast('연결했어요'); route();
+    } catch (e) { store.del('sync'); $('linkErr').textContent = (e && e.message) || '연결하지 못했어요'; btn.disabled = false; btn.textContent = '연결하기'; }
   };
-  if ($('mergeForm')) {
-    $('mergeCancel').onclick = () => { syncNeedPw = null; route(); };
-    $('mergeForm').onsubmit = async ev => {
-      ev.preventDefault();
-      const { cfg, remote } = syncNeedPw, salt = unb64(remote.salt);
-      try {
-        const key = await deriveKey($('mergePw').value, salt);
-        const rdb = await openBox(remote, key);
-        DB = mergeDB(DB, rdb); DB.sync = cfg; SALT = salt; KEY = key; syncNeedPw = null;
-        loadState(); await saveNow(); await syncNow(); toast('두 공책을 합쳤어요'); route();
-      } catch (e) { $('mergeErr').textContent = '비밀번호가 맞지 않아요'; }
-    };
-  }
   if ($('syncNowBtn')) $('syncNowBtn').onclick = async () => { syncErr = ''; const p = syncNow(); route(); await p; };
   if ($('unlinkBtn')) $('unlinkBtn').onclick = () => {
     if (confirmDel !== 'unlink') { confirmDel = 'unlink'; return route(); }
@@ -1290,11 +1312,11 @@ async function restoreFrom(file) {
   if (!file) return;
   try {
     const box = JSON.parse(await file.text());
-    if (!box || !box.ct || !box.salt || !box.iv) throw 0;
-    if (KEY) { clearTimeout(saveTimer); await saveNow(); }
-    writeBox(box); RAW = box;
-    KEY = null; SALT = null; DB = {}; entries = []; map = null; posts = SAMPLE_POSTS; run = null;
-    lockMode = 'unlock'; lockErr = '백업을 불러왔어요. 백업할 때의 비밀번호로 열어 주세요.'; go('home'); route();
+    if (!box || !(box.plain || box.ct)) throw 0;
+    if (OPEN) { clearTimeout(saveTimer); await saveNow(); }
+    if (box.plain && OPEN) { DB = mergeDB(DB, box.db || {}); await saveNow(); loadState(); toast('백업을 불러와 합쳤어요'); return route(); }
+    writeBox(box); OPEN = false; LOCK = null; DB = {}; run = null;
+    lockNote = '백업을 불러왔어요. 백업할 때의 비밀번호로 열어 주세요.'; go('home'); startFromBox();
   } catch (e) { toast('마음 공책 백업 파일이 아니에요'); }
 }
 function lastBackupText() {
@@ -1304,7 +1326,7 @@ function lastBackupText() {
 
 // ---------- 홈 화면에 설치 ----------
 let installEvt = null;
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!KEY) route(); });
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; const h = (location.hash || '').slice(1); if (!OPEN || h === 'shelf') route(); });
 window.addEventListener('appinstalled', () => { installEvt = null; toast('홈 화면에 설치했어요'); });
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 function installBtn() {
@@ -1318,10 +1340,10 @@ function bindInstall() {
 }
 
 (async function boot() {
-  try { localStorage.setItem('maeum-notebook:probe', '1'); localStorage.removeItem('maeum-notebook:probe'); RAW = readBox(); lockMode = RAW && RAW.ct ? 'unlock' : 'setup'; }
-  catch (e) { lockMode = 'nostore'; }
+  let ok = true;
+  try { localStorage.setItem('maeum-notebook:probe', '1'); localStorage.removeItem('maeum-notebook:probe'); } catch (e) { ok = false; }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  route();
+  if (ok) startFromBox(); else { lockMode = 'nostore'; route(); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 })();
 </script>
