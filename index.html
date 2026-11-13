@@ -308,7 +308,7 @@ const QUESTION_POOL = [
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 const EXERCISES = [
-  { id: 'thanks', title: '감사 세 줄', time: '3분',
+  { id: 'thanks', title: '감사 세 줄', time: '3분', noImage: true,
     intro: '오늘 고마웠던 일 세 가지를 적고, 그중 하나가 왜 고마웠는지 적어요.', meta: '3분 ·',
     desc: '오늘 고마웠던 일 세 가지와 그중 하나가 고마웠던 이유.',
     steps: [
@@ -536,7 +536,7 @@ function viewIntro(ex) {
     <button type="button" class="icon-back" data-go="home" aria-label="목록으로">‹</button>
     <h1>${ex.heading || ex.title}</h1>
     <p class="big">${ex.intro || ex.desc}</p>
-    <p class="small">${ex.meta || ex.time + ' · 중간에 나가도 이어서 할 수 있어요.'} 다 쓰면 이미지나 PDF로도 저장할 수 있어요.</p>
+    <p class="small">${ex.meta || ex.time + ' · 중간에 나가도 이어서 할 수 있어요.'} 다 쓰면 ${ex.noImage ? 'PDF로도' : '이미지나 PDF로도'} 저장할 수 있어요.</p>
     ${[].concat(ex.note || [], ex.notes || []).map(n => `<p class="small">${n}</p>`).join('')}
     ${resume ? `<p class="small" style="color:var(--ink)">쓰다 만 기록이 있어요 (${run.step + 1} / ${run.steps.length} 단계).</p>
       <button type="button" class="btn-dark" id="startBtn">이어 쓰기</button>
@@ -550,7 +550,7 @@ function viewDone(ex) {
     <h1 style="font-size:2rem">다 썼어요</h1>
     <p class="lead">「${ex.title}」 기록이 책장에 꽂혔어요. 오늘 달력에도 점이 찍혔어요.</p>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px">
-      <button type="button" class="btn" data-go="entry-${run.entryId}">기록 보기 · 이미지/PDF 저장</button>
+      <button type="button" class="btn" data-go="entry-${run.entryId}">기록 보기 · ${ex.noImage ? 'PDF 저장' : '이미지/PDF 저장'}</button>
       <button type="button" class="btn primary" data-go="home">목록으로</button>
     </div>
   </section>`;
@@ -785,7 +785,7 @@ function viewEntry(id) {
   <button type="button" class="back" data-go="shelf">← 책장으로</button>
   <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)}</h1><p class="lead">${prettyDate(e.date)}${e.sample ? ' · 예시' : ''}</p></header>
   <article class="sk entry-body" style="transform:none">${e.steps.map(s => `<div><h4>${esc(s.p)}</h4>${renderAnswer(s)}</div>`).join('')}</article>
-  ${e.sample ? '' : `<div class="actions"><div class="tools"><button type="button" class="btn" id="imgE">이미지로 저장</button><button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
+  ${e.sample ? '' : `<div class="actions"><div class="tools">${(exById(e.ex) || {}).noImage ? '' : '<button type="button" class="btn" id="imgE">이미지로 저장</button>'}<button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
 }
 // 기록 한 편을 공책 한 장 같은 이미지(PNG)로 만들어 저장해요.
 async function saveEntryImage(e) {
