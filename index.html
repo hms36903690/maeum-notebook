@@ -28,6 +28,7 @@
   --marker-ink: #4a4220;
   --leaf: #8fb573;
   --leaf-pale: #d3e3b8;
+  --tb0: #f6e7a6; --tb1: #f8cfb6; --tb2: #f4c6d6; --tb3: #d9cff2; --tb4: #c4dcf3; --tb5: #c5e6d5; --tb6: #e9dcc4; --tb7: #f2c9c4;
   --leaf-2: #6e9a55;
   --bark: #8a6a4b;
   --dot: #d9a441;
@@ -38,13 +39,13 @@
   :root:not([data-theme="light"]) {
     --paper: #1d1c1a; --card: #262522; --ink: #ecebe5; --ink-soft: #a8a59d; --line: #d8d5cc;
     --shadow: #0f0f0e; --marker: #6b5e22; --marker-ink: #f6eebf; --leaf: #8fb573; --leaf-pale: #4d6a3b; --leaf-2: #b2d496;
-    --bark: #b48e69; --dot: #e3b85d; color-scheme: dark;
+    --bark: #b48e69; --dot: #e3b85d; --tb0: #5e5320; --tb1: #6a4330; --tb2: #64374a; --tb3: #4a3f6b; --tb4: #2f4b66; --tb5: #2f5642; --tb6: #574a35; --tb7: #683a36; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --paper: #1d1c1a; --card: #262522; --ink: #ecebe5; --ink-soft: #a8a59d; --line: #d8d5cc;
   --shadow: #0f0f0e; --marker: #6b5e22; --marker-ink: #f6eebf; --leaf: #8fb573; --leaf-pale: #4d6a3b; --leaf-2: #b2d496;
-  --bark: #b48e69; --dot: #e3b85d; color-scheme: dark;
+  --bark: #b48e69; --dot: #e3b85d; --tb0: #5e5320; --tb1: #6a4330; --tb2: #64374a; --tb3: #4a3f6b; --tb4: #2f4b66; --tb5: #2f5642; --tb6: #574a35; --tb7: #683a36; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -809,11 +810,13 @@ function viewTimebox() {
   const [eSide, eKey] = tbEdit ? [tbEdit.slice(0, 1), tbEdit.slice(2)] : ['', ''];
   const picks = [...new Set([...tops, ...dumps])];
   const chips = list => list.length ? `<div class="chips">${list.map(t => `<button type="button" class="chip" data-pick="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : '';
+  const colorOf = {}; let nColor = 0;
+  for (let h = r.from; h < r.to; h++) for (const m of [0, 1]) { const c = tbSlot(d, slotKey(h, m)); if (c && c.t && !(c.t in colorOf)) colorOf[c.t] = nColor++ % 8; }
   let grid = `<span class="tb-hd"></span><span class="tb-hd">해야 할 일</span><span class="tb-hd">한 일</span>`;
   for (let h = r.from; h < r.to; h++) for (const m of [0, 1]) {
     const key = slotKey(h, m), c = tbSlot(d, key), pinned = !!tbFixed()[key], act = tbActual(d, key), isNow = key === nowKey;
     grid += `<span class="hr ${m ? 'half' : ''} ${isNow ? 'nowt' : ''}">${m ? ':30' : h + ':00'}</span>
-      <button type="button" class="tb-cell ${m ? 'half' : ''} ${c && c.t ? 'fill' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'p:' + key ? 'edit' : ''}" data-slot="p:${key}" aria-label="${h}시 ${m ? '30분' : ''} 해야 할 일">${pinned ? '<span class="pin">📌</span>' : ''}<span class="t">${c && c.t ? esc(c.t) : ''}</span></button>
+      <button type="button" class="tb-cell ${m ? 'half' : ''} ${c && c.t ? 'fill' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'p:' + key ? 'edit' : ''}" ${c && c.t ? `style="background: var(--tb${colorOf[c.t]})"` : ''} data-slot="p:${key}" aria-label="${h}시 ${m ? '30분' : ''} 해야 할 일">${pinned ? '<span class="pin">📌</span>' : ''}<span class="t">${c && c.t ? esc(c.t) : ''}</span></button>
       <button type="button" class="tb-cell act ${m ? 'half' : ''} ${act ? 'done' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'a:' + key ? 'edit' : ''}" data-slot="a:${key}" aria-label="${h}시 ${m ? '30분' : ''} 한 일"><span class="t">${act ? esc(act) : ''}</span></button>`;
     if (eKey === key) {
       const label = `${h}시 ${m ? '30분' : '정각'}부터 30분`;
@@ -1745,7 +1748,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 50;
+const APP_VERSION = 51;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
