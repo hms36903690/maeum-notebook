@@ -1217,6 +1217,7 @@ async function syncNow() {
   const cfg = DB.sync; if (!OPEN || !cfg || !cfg.token) return;
   if (syncing) { syncAgain = true; return; }
   syncing = true;
+  let changed = false;
   try {
     const before = JSON.stringify(DB), key = await syncKey(cfg.token);
     const remote = await gistRead(cfg);
@@ -1228,14 +1229,14 @@ async function syncNow() {
     const c = await encJSON(key, DB);
     await gistWrite(cfg, { v: 3, iv: c.iv, ct: c.ct });
     lastSync = Date.now(); syncErr = '';
-    const h = (location.hash || '#home').slice(1);
-    const typing = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
-    if ((JSON.stringify(DB) !== before && !typing && !h.startsWith('ex-')) || h === 'sync') route();
+    changed = JSON.stringify(DB) !== before;
   } catch (e) {
     syncErr = (e && e.message) || '맞추지 못했어요';
-    if ((location.hash || '').slice(1) === 'sync') route();
   } finally {
-    syncing = false;
+    syncing = false;   // 끝났다고 먼저 표시한 뒤 화면을 다시 그려요
+    const h = (location.hash || '#home').slice(1);
+    const typing = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+    if (h === 'sync' || (changed && !typing && !h.startsWith('ex-'))) route();
     if (syncAgain) { syncAgain = false; setTimeout(syncNow, 500); }
   }
 }
