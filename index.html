@@ -512,7 +512,7 @@ function viewHome() {
       </button>`).join('') || '<p class="empty">찾는 카드가 없어요. 다른 말로 찾아보세요.</p>'}
   </div>
   <button type="button" class="sk" data-go="together" style="margin-top:12px">
-    <div class="row"><h3 style="font-size:1.4rem">하루 한 줄</h3><span class="meta">운동 · 명상 · 독서 · 감사 …</span></div>
+    <div class="row"><h3 style="font-size:1.4rem">하루 한 줄</h3><span class="meta">운동 · 명상 · 독서 · 확언 …</span></div>
     <p class="desc">${todayPosts ? `오늘 ${todayPosts}줄 남겼어요. 한 줄 더 →` : '오늘의 한 줄을 남겨요 →'}</p>
   </button>`;
 }
@@ -886,7 +886,7 @@ function afterTimebox() {
 }
 
 // ---------- 하루 한 줄 ----------
-const BASE_CATS = ['운동', '명상', '독서', '감사', '감정일기 쓰기'];
+const BASE_CATS = ['운동', '명상', '독서', '확언', '감정일기 쓰기'];
 let postCat = '명상', addingCat = false;
 function allCats() {
   const extra = store.get('cats', []);
