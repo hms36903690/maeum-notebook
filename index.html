@@ -308,7 +308,7 @@ const QUESTION_POOL = [
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 const EXERCISES = [
-  { id: 'thanks', title: '감사 세 줄', time: '3분', noImage: true,
+  { id: 'thanks', title: '감사 세 줄', time: '3분',
     intro: '오늘 고마웠던 일 세 가지를 적고, 그중 하나가 왜 고마웠는지 적어요.', meta: '3분 ·',
     desc: '오늘 고마웠던 일 세 가지와 그중 하나가 고마웠던 이유.',
     steps: [
@@ -536,7 +536,7 @@ function viewIntro(ex) {
     <button type="button" class="icon-back" data-go="home" aria-label="목록으로">‹</button>
     <h1>${ex.heading || ex.title}</h1>
     <p class="big">${ex.intro || ex.desc}</p>
-    <p class="small">${ex.meta || ex.time + ' · 중간에 나가도 이어서 할 수 있어요.'} 다 쓰면 ${ex.noImage ? 'PDF로도' : '이미지나 PDF로도'} 저장할 수 있어요.</p>
+    <p class="small">${ex.meta || ex.time + ' · 중간에 나가도 이어서 할 수 있어요.'} 다 쓰면 PDF로도 저장할 수 있어요.</p>
     ${[].concat(ex.note || [], ex.notes || []).map(n => `<p class="small">${n}</p>`).join('')}
     ${resume ? `<p class="small" style="color:var(--ink)">쓰다 만 기록이 있어요 (${run.step + 1} / ${run.steps.length} 단계).</p>
       <button type="button" class="btn-dark" id="startBtn">이어 쓰기</button>
@@ -550,7 +550,7 @@ function viewDone(ex) {
     <h1 style="font-size:2rem">다 썼어요</h1>
     <p class="lead">「${ex.title}」 기록이 책장에 꽂혔어요. 오늘 달력에도 점이 찍혔어요.</p>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px">
-      <button type="button" class="btn" data-go="entry-${run.entryId}">기록 보기 · ${ex.noImage ? 'PDF 저장' : '이미지/PDF 저장'}</button>
+      <button type="button" class="btn" data-go="entry-${run.entryId}">기록 보기 · PDF 저장</button>
       <button type="button" class="btn primary" data-go="home">목록으로</button>
     </div>
   </section>`;
@@ -785,63 +785,7 @@ function viewEntry(id) {
   <button type="button" class="back" data-go="shelf">← 책장으로</button>
   <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)}</h1><p class="lead">${prettyDate(e.date)}${e.sample ? ' · 예시' : ''}</p></header>
   <article class="sk entry-body" style="transform:none">${e.steps.map(s => `<div><h4>${esc(s.p)}</h4>${renderAnswer(s)}</div>`).join('')}</article>
-  ${e.sample ? '' : `<div class="actions"><div class="tools">${(exById(e.ex) || {}).noImage ? '' : '<button type="button" class="btn" id="imgE">이미지로 저장</button>'}<button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
-}
-// 기록 한 편을 공책 한 장 같은 이미지(PNG)로 만들어 저장해요.
-async function saveEntryImage(e) {
-  try { await document.fonts.ready; } catch (_) {}
-  const W = 1080, PAD = 90, LINE = 50, cs = getComputedStyle(document.documentElement);
-  const col = n => cs.getPropertyValue(n).trim();
-  const paper = '#fbfaf7', ink = '#2b2a27', soft = '#6b6862', rule = '#e2dfd6', mark = '#f3e49b';
-  const hand = '"Gaegu", "Gowun Dodum", sans-serif', body = '"Gowun Dodum", "Noto Sans KR", sans-serif';
-  const c = document.createElement('canvas'), x = c.getContext('2d');
-  const wrap = (text, font, maxW) => {
-    x.font = font; const out = [];
-    String(text).split('\n').forEach(par => {
-      let line = '';
-      for (const ch of par) { if (x.measureText(line + ch).width > maxW && line) { out.push(line); line = ch.trimStart(); } else line += ch; }
-      out.push(line);
-    });
-    return out;
-  };
-  const blocks = e.steps.map(s => {
-    let lines = [];
-    const a = s.a;
-    if (s.t === 'sort') {
-      lines = [...a.filter(i => i.can === true).map(i => '○ 할 수 있어요 · ' + i.t), ...a.filter(i => i.can === false).map(i => '× 어쩔 수 없어요 · ' + i.t)];
-    } else if (Array.isArray(a)) lines = a.map((v, i) => [v, i]).filter(([v]) => v.trim()).map(([v, i]) => '· ' + (s.labels ? s.labels[i] + ' ' : '') + v);
-    else lines = a.trim() ? [a.trim()] : [];
-    if (!lines.length) lines = ['(비워 둠)'];
-    const body28 = `28px ${body}`, q = wrap(s.p, `bold 30px ${body}`, W - PAD * 2);
-    const ans = lines.flatMap(l => wrap(l, body28, W - PAD * 2));
-    return { q, ans };
-  });
-  const titleLines = wrap(e.title, `bold 64px ${hand}`, W - PAD * 2);
-  let H = PAD + titleLines.length * 72 + 70;
-  blocks.forEach(b => { H += b.q.length * 44 + 12 + b.ans.length * LINE + 40; });
-  H += 80;
-  const scale = 1; c.width = W * scale; c.height = H * scale;
-  x.fillStyle = paper; x.fillRect(0, 0, W, H);
-  x.strokeStyle = ink; x.lineWidth = 4; x.strokeRect(30, 30, W - 60, H - 60);
-  let y = PAD;
-  x.textBaseline = 'top';
-  x.fillStyle = mark; x.fillRect(PAD - 10, y + 40, Math.min(W - PAD * 2, x.measureText(titleLines[0]).width + 20), 26);
-  x.fillStyle = ink; x.font = `bold 64px ${hand}`;
-  titleLines.forEach(l => { x.fillText(l, PAD, y); y += 72; });
-  x.fillStyle = soft; x.font = `26px ${body}`; x.fillText(prettyDate(e.date) + ' · 마음 공책', PAD, y + 4); y += 70;
-  blocks.forEach(b => {
-    x.fillStyle = ink; x.font = `bold 30px ${body}`; b.q.forEach(l => { x.fillText(l, PAD, y); y += 44; }); y += 12;
-    x.font = `28px ${body}`;
-    b.ans.forEach(l => { x.fillStyle = rule; x.fillRect(PAD, y + LINE - 6, W - PAD * 2, 2); x.fillStyle = ink; x.fillText(l, PAD, y + 6); y += LINE; });
-    y += 40;
-  });
-  c.toBlob(blob => {
-    if (!blob) return toast('이미지를 만들지 못했어요');
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `마음공책-${e.title.replace(/\s+/g, '')}-${e.date}.png`;
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    toast('이미지를 저장했어요 (다운로드 폴더)');
-  }, 'image/png');
+  ${e.sample ? '' : `<div class="actions"><div class="tools"><button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
 }
 function entryText(e) {
   return `${e.title} (${prettyDate(e.date)})\n\n` + e.steps.map(s => {
@@ -944,7 +888,6 @@ function afterRender(h) {
       if (confirmDel === id) { entries = entries.filter(x => x.id !== id); tomb(id); saveEntries(); confirmDel = null; toast('지웠어요'); go('shelf'); }
       else { confirmDel = id; route(); }
     };
-    if ($('imgE')) $('imgE').onclick = () => saveEntryImage(e);
     if ($('pdfE')) $('pdfE').onclick = () => { toast('인쇄 화면에서 대상을 "PDF로 저장"으로 고르세요'); setTimeout(() => window.print(), 400); };
     if ($('copyE')) $('copyE').onclick = () => {
       navigator.clipboard.writeText(entryText(e)).then(() => toast('복사했어요'), () => toast('복사가 막혀 있어요. 직접 선택해서 복사해 주세요'));
