@@ -145,6 +145,7 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .tb-dump { overflow: hidden; resize: none; }
 .tb-range { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--ink-soft); font-size: .9rem; }
 .tb-range select { font: inherit; color: var(--ink); background: var(--card); border: 1.5px solid var(--line); border-radius: 8px; padding: 2px 6px; }
+.update-bar { width: 100%; border: 2px solid var(--line); background: var(--marker); color: var(--marker-ink); border-radius: 12px; padding: 8px 12px; font-size: .95rem; text-align: center; box-shadow: 2px 3px 0 var(--shadow); }
 .divider { display: block; width: 100%; height: 10px; overflow: visible; }
 .divider path { fill: none; stroke: var(--line); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .search { border: 0; border-bottom: 2px solid var(--line); background: transparent; width: 100%; padding: 8px 0; font: inherit; color: var(--ink); }
@@ -495,6 +496,7 @@ function viewHome() {
   const todayPosts = posts.filter(p => p.date === today()).length;
   return `
   <header style="display:flex;flex-direction:column;gap:10px">
+    ${latestVersion > APP_VERSION ? `<button type="button" class="update-bar" data-update>새 버전이 있어요 · 눌러서 업데이트 ↻</button>` : ''}
     <h1>자신과 대화하기</h1>
     <p class="lead">질문을 따라 쓰다 보면 내 마음이 보여요.</p>
   </header>
@@ -1002,7 +1004,8 @@ function viewShelf() {
   <div class="list">${list.map(e => `
     <button type="button" class="sk" data-go="entry-${e.id}">
       <div class="row"><span class="card-title" style="font-size:1.15rem">${esc(e.title)}</span><span class="meta">${sample ? '<span class="pill">예시</span>' : ''}${prettyDate(e.date)}</span></div>
-      <p class="desc">${esc(firstLine(e))}</p></button>`).join('')}</div>`;
+      <p class="desc">${esc(firstLine(e))}</p></button>`).join('')}</div>
+  ${viewUpdateBox()}`;
 }
 const SAMPLE_ENTRY = { id: 'sample', ex: 'thanks', title: '감사 세 줄', date: today(), sample: true, steps: [
   { p: '오늘 고마웠던 일 세 가지', t: 'list', a: ['아침 버스를 기사님이 기다려 주셨다', '동생이 반찬을 보내 줬다', '비가 그치고 해가 났다'] },
@@ -1120,6 +1123,7 @@ function afterRender(h) {
     $('mPrev').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); route(); };
     $('mNext').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); route(); };
   }
+  if (h === 'shelf') bindUpdateBox();
   if (h === 'shelf' && $('backupNow')) { if ($('lockNow')) $('lockNow').onclick = lockApp; bindInstall(); $('backupNow').onclick = downloadBackup; $('restoreFile2').onchange = () => restoreFrom($('restoreFile2').files[0]); }
   if (h.startsWith('entry-')) {
     const id = h.slice(6), e = entries.find(x => x.id === id);
@@ -1552,12 +1556,56 @@ function bindInstall() {
   if (b) b.onclick = async () => { installEvt.prompt(); await installEvt.userChoice; installEvt = null; route(); };
 }
 
+// ---------- 앱 업데이트 ----------
+// 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
+const APP_VERSION = 41;
+let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
+async function checkUpdate(show) {
+  if (checkingUpdate) return; checkingUpdate = true;
+  try {
+    const t = await (await fetch('./index.html?check=' + Date.now(), { cache: 'no-store' })).text();
+    const m = t.match(/const APP_VERSION = (\d+);/);
+    latestVersion = m ? +m[1] : 0; lastCheck = Date.now();
+    if (show) toast(latestVersion > APP_VERSION ? '새 버전이 있어요' : '지금이 최신 버전이에요');
+  } catch (e) { if (show) toast('인터넷에 연결되어 있지 않아 확인하지 못했어요'); }
+  checkingUpdate = false;
+  const h = (location.hash || '#home').slice(1);
+  if (OPEN && (h === 'shelf' || h === 'home' || h === '')) {
+    const typing = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+    if (!typing) route();
+  }
+}
+async function doUpdate() {
+  toast('새 버전을 받는 중이에요…');
+  try { clearTimeout(saveTimer); await saveNow(); } catch (e) {}
+  try {
+    if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
+    const reg = 'serviceWorker' in navigator && await navigator.serviceWorker.getRegistration();
+    if (reg) await reg.update().catch(() => {});
+    await fetch('./index.html', { cache: 'reload' });
+    await fetch('./', { cache: 'reload' });
+  } catch (e) {}
+  location.reload();
+}
+function viewUpdateBox() {
+  const has = latestVersion > APP_VERSION;
+  return `<section class="sk" style="transform:none;display:flex;flex-direction:column;gap:10px;margin-top:8px">
+    <div class="row"><h2 style="font-size:1.35rem">앱 업데이트</h2><span class="meta">지금 버전 ${APP_VERSION}</span></div>
+    <p class="desc" style="margin:0">${checkingUpdate ? '확인하는 중…' : has ? `새 버전 ${latestVersion}이 있어요. 업데이트를 누르면 받아서 다시 열려요. 쓴 기록은 그대로예요.` : lastCheck ? '지금이 최신 버전이에요.' : '새 버전이 있는지 확인해 보세요.'}</p>
+    <div class="tools">${has ? '<button type="button" class="btn primary" data-update>업데이트</button>' : '<button type="button" class="btn" id="checkUpd">새 버전 확인</button><button type="button" class="btn ghost" data-update>그래도 새로 받기</button>'}</div>
+  </section>`;
+}
+function bindUpdateBox() { const c = document.getElementById('checkUpd'); if (c) c.onclick = () => { checkUpdate(true); route(); }; }
+document.addEventListener('click', ev => { if (ev.target.closest('[data-update]')) doUpdate(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - lastCheck > 10 * 60 * 1000) checkUpdate(); });
+
 (async function boot() {
   let ok = true;
   try { localStorage.setItem('maeum-notebook:probe', '1'); localStorage.removeItem('maeum-notebook:probe'); } catch (e) { ok = false; }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if (ok) startFromBox(); else { lockMode = 'nostore'; route(); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  setTimeout(() => checkUpdate(), 1500);
 })();
 </script>
 

@@ -1,5 +1,5 @@
 // 마음 공책 오프라인 지원. 화면 파일만 저장하고, 기록은 다루지 않습니다.
-const CACHE = 'maeum-notebook-v40';
+const CACHE = 'maeum-notebook-v41';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -12,6 +12,8 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // 새 버전 확인(?check=…) 같은 요청은 저장하지 않고 그대로 인터넷에서 받아요.
+  if (url.origin === location.origin && url.search) return;
   // 화면(html)은 새 버전을 먼저 받아 보고, 인터넷이 없으면 저장해 둔 것을 씁니다.
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); return r; })
