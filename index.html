@@ -823,18 +823,18 @@ function viewTimebox() {
   const chips = list => list.length ? `<div class="chips">${list.map(t => `<button type="button" class="chip" data-pick="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : '';
   const colorOf = {}; let nColor = 0;
   for (let h = r.from; h < r.to; h++) for (const m of [0, 1]) { const c = tbSlot(d, slotKey(h, m)); if (c && c.t && !(c.t in colorOf)) colorOf[c.t] = nColor++ % 8; }
-  let grid = `<span class="tb-hd"></span><span class="tb-hd">해야 할 일</span><span class="tb-hd">한 일</span>`;
+  let grid = `<span class="tb-hd"></span><span class="tb-hd">계획</span><span class="tb-hd">한 일</span>`;
   for (let h = r.from; h < r.to; h++) for (const m of [0, 1]) {
     const key = slotKey(h, m), c = tbSlot(d, key), pinned = !!tbFixed()[key], act = tbActual(d, key), isNow = key === nowKey;
     grid += `<span class="hr ${m ? 'half' : ''} ${isNow ? 'nowt' : ''}">${m ? ':30' : h + ':00'}</span>
-      <button type="button" class="tb-cell ${m ? 'half' : ''} ${c && c.t ? 'fill' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'p:' + key ? 'edit' : ''}" ${c && c.t ? `style="background: var(--tb${colorOf[c.t]})"` : ''} data-slot="p:${key}" aria-label="${h}시 ${m ? '30분' : ''} 해야 할 일">${pinned ? '<span class="pin">📌</span>' : ''}<span class="t">${c && c.t ? esc(c.t) : ''}</span></button>
+      <button type="button" class="tb-cell ${m ? 'half' : ''} ${c && c.t ? 'fill' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'p:' + key ? 'edit' : ''}" ${c && c.t ? `style="background: var(--tb${colorOf[c.t]})"` : ''} data-slot="p:${key}" aria-label="${h}시 ${m ? '30분' : ''} 계획">${pinned ? '<span class="pin">📌</span>' : ''}<span class="t">${c && c.t ? esc(c.t) : ''}</span></button>
       <button type="button" class="tb-cell act ${m ? 'half' : ''} ${act ? 'done' : ''} ${isNow ? 'now' : ''} ${tbEdit === 'a:' + key ? 'edit' : ''}" data-slot="a:${key}" aria-label="${h}시 ${m ? '30분' : ''} 한 일"><span class="t">${act ? esc(act) : ''}</span></button>`;
     if (eKey === key) {
       const label = `${h}시 ${m ? '30분' : '정각'}부터 30분`;
       if (eSide === 'p') {
         const pinnedNow = tbFixed()[key];
         grid += `<div class="tb-edit">
-          <label class="step-label" for="slotText">${label} · 해야 할 일</label>
+          <label class="step-label" for="slotText">${label} · 계획</label>
           <input class="field" id="slotText" value="${esc(c ? c.t : '')}" placeholder="이 시간에 할 일" autocomplete="off">
           ${chips(picks) || '<p class="step-label">우선순위나 브레인 덤프에 적은 일이 여기 나와요. 눌러서 바로 넣을 수 있어요.</p>'}
           <div class="tools"><button type="button" class="btn primary" id="slotOk">넣기</button><button type="button" class="btn" id="slotNext">다음 칸까지 이어서</button><button type="button" class="btn ghost" id="slotDel">${pinnedNow ? '오늘만 비우기' : '비우기'}</button></div>
@@ -877,7 +877,7 @@ function viewTimebox() {
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:10px">
     <div class="row"><h2 style="font-size:1.4rem">시간표</h2><span class="meta">계획 ${tbFilled(k)} · 한 일 ${tbDoneCount(k)}</span></div>
-    <p class="step-label">왼쪽에는 해야 할 일, 오른쪽에는 실제로 한 일을 적어요. 칸을 누르면 적을 수 있어요. 지금 시각 줄에는 주황 줄이 있어요.</p>
+    <p class="step-label">왼쪽에는 계획, 오른쪽에는 실제로 한 일을 적어요. 칸을 누르면 적을 수 있어요. 지금 시각 줄에는 주황 줄이 있어요.</p>
     <div class="tb-grid">${grid}</div>
     <div class="tb-range">
       <label>시작 <select id="tbFrom">${Array.from({ length: 12 }, (_, i) => i + 4).map(i => `<option value="${i}" ${i === r.from ? 'selected' : ''}>${i}시</option>`).join('')}</select></label>
@@ -1870,7 +1870,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 58;
+const APP_VERSION = 59;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
