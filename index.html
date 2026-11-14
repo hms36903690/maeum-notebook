@@ -233,6 +233,8 @@ textarea:focus, .field:focus { outline: none; }
 .entry-body h4 { margin: 0 0 4px; font-family: var(--font-hand); font-size: 1.2rem; }
 .entry-body p, .entry-body li { white-space: pre-wrap; overflow-wrap: anywhere; }
 .entry-body ul { margin: 0; padding-left: 1.2em; }
+.entry-body ol.num-list { margin: 0; padding-left: 1.6em; }
+.entry-body ol.num-list li::marker { font-weight: 700; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 480px) { .two { grid-template-columns: 1fr; } }
 .empty { color: var(--ink-soft); text-align: center; padding: 28px 0; }
@@ -1165,7 +1167,9 @@ function renderAnswer(s) {
     const col = (t, xs) => `<div><h4 style="font-size:1rem">${t}</h4><ul>${xs.map(x => `<li>${esc(x.t)}</li>`).join('') || '<li>-</li>'}</ul></div>`;
     return `<div class="two">${col('할 수 있는 것', can)}${col('어쩔 수 없는 것', no)}</div>`;
   }
-  if (Array.isArray(a)) { const xs = a.map((x, i) => [x, i]).filter(([x]) => x.trim()); return xs.length ? `<ul>${xs.map(([x, i]) => `<li>${s.labels ? `<b>${esc(s.labels[i])}</b> ` : ''}${esc(x)}</li>`).join('')}</ul>` : '<p class="step-label">(비워 둠)</p>'; }
+  if (Array.isArray(a)) { const xs = a.map((x, i) => [x, i]).filter(([x]) => x.trim()); return xs.length ? (s.labels
+    ? `<ul>${xs.map(([x, i]) => `<li><b>${esc(s.labels[i])}</b> ${esc(x)}</li>`).join('')}</ul>`
+    : `<ol class="num-list">${xs.map(([x, i]) => `<li value="${i + 1}">${esc(x)}</li>`).join('')}</ol>`) : '<p class="step-label">(비워 둠)</p>'; }
   return a.trim() ? `<p>${esc(a)}</p>` : '<p class="step-label">(비워 둠)</p>';
 }
 let entryEdit = null;
@@ -1176,7 +1180,10 @@ function viewEntryEdit(e) {
         <button type="button" data-esort="${i}:${j}" data-can="1" class="${x.can === true ? 'on' : ''}">할 수 있어요</button>
         <button type="button" data-esort="${i}:${j}" data-can="0" class="${x.can === false ? 'on' : ''}">어쩔 수 없어요</button></div></div>`).join('') || '<p class="step-label">(나눈 걱정이 없어요)</p>'}</div>`;
     if (Array.isArray(s.a)) return `<div class="list-fields">${s.a.map((v, j) => `<label><b>${s.labels ? '' : j + 1}</b>${s.labels ? `<span class="step-label" style="flex:none;width:5em">${esc(s.labels[j])}</span>` : ''}<input class="field" data-ei="${i}" data-ej="${j}" value="${esc(v)}" autocomplete="off"></label>`).join('')}</div>`;
-    return `<textarea data-ei="${i}" rows="4" class="grow">${esc(s.a)}</textarea>`;
+    const prev = i > 0 && e.ex === 'thanks' && Array.isArray(e.steps[i - 1].a) ? e.steps[i - 1].a.map((t, j) => [t, j + 1]).filter(([t]) => t && t.trim()) : [];
+    const chipsHtml = prev.length ? `<div class="chips" style="margin-bottom:8px">${prev.map(([t, n]) => `<button type="button" class="chip pick-chip ${String(s.a).startsWith('「' + t + '」') ? 'on' : ''}" data-epick="${i}" data-t="${esc(t)}">${n}. ${esc(t)}</button>`).join('')}</div>
+      <p class="step-label" style="margin:0 0 6px">하나를 누르면 이유 앞에 「 」로 들어가요.</p>` : '';
+    return `${chipsHtml}<textarea data-ei="${i}" rows="4" class="grow">${esc(s.a)}</textarea>`;
   };
   return `
   <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)} 수정</h1><p class="lead">${prettyDate(e.date)}</p></header>
@@ -1197,7 +1204,7 @@ function entryText(e) {
   return `${e.title} (${prettyDate(e.date)})\n\n` + e.steps.map(s => {
     const a = s.a; let body;
     if (s.t === 'sort') body = a.map(x => `- ${x.t} [${x.can === true ? '할 수 있음' : x.can === false ? '어쩔 수 없음' : '-'}]`).join('\n');
-    else if (Array.isArray(a)) body = a.filter(x => x.trim()).map(x => '- ' + x).join('\n');
+    else if (Array.isArray(a)) body = a.map((x, i) => [x, i]).filter(([x]) => x.trim()).map(([x, i]) => (s.labels ? '- ' + s.labels[i] + ' ' : (i + 1) + '. ') + x).join('\n');
     else body = a;
     return `■ ${s.p}\n${body || '(비워 둠)'}`;
   }).join('\n\n');
@@ -1318,6 +1325,10 @@ function afterRender(h) {
       document.querySelectorAll('[data-ei]').forEach(inp => inp.oninput = () => {
         const s = ed.steps[+inp.dataset.ei];
         if (inp.dataset.ej !== undefined) s.a[+inp.dataset.ej] = inp.value; else { s.a = inp.value; if (inp.tagName === 'TEXTAREA') grow(inp); }
+      });
+      document.querySelectorAll('[data-epick]').forEach(b => b.onclick = () => {
+        const st = ed.steps[+b.dataset.epick];
+        st.a = '「' + b.dataset.t + '」 ' + String(st.a || '').replace(/^「[^」]*」\s*/, ''); route();
       });
       document.querySelectorAll('[data-esort]').forEach(b => b.onclick = () => {
         const [i, j] = b.dataset.esort.split(':').map(Number); ed.steps[i].a[j].can = b.dataset.can === '1'; route();
@@ -1859,7 +1870,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 57;
+const APP_VERSION = 58;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
