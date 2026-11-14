@@ -145,7 +145,9 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .tb-half > .sk { padding: 16px 14px; min-width: 0; }
 .tb-half .habit { gap: 8px; padding: 8px 0; }
 .tb-half .ck-row { flex-wrap: wrap; row-gap: 4px; border-bottom: 0; }
-.ck-name { display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; }
+.ck-name { display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.ck-row.dragging { position: relative; z-index: 3; background: var(--card); box-shadow: 0 6px 14px rgba(0,0,0,.18); border-radius: 8px; opacity: .97; }
+.ck-row.dragging .ck-name span { font-weight: 700; }
 .ck-name span { overflow-wrap: anywhere; }
 .ck-paren { flex: 1 1 4em; display: flex; align-items: center; gap: 2px; min-width: 4em; color: var(--ink-soft); }
 .habit .ck-note { flex: 1; min-width: 0; width: 100%; font: inherit; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid transparent; padding: 0 2px; height: 1.6em; }
@@ -882,8 +884,8 @@ function viewTimebox() {
     ${tbListEdit ? `<div class="tb-top">${tbList().map((n, i) => `<div class="habit"><input class="field" data-rename="${i}" value="${esc(n)}" aria-label="${i + 1}번 항목 이름" autocomplete="off"><button type="button" class="btn ghost" data-rmcheck="${i}" style="padding:0 4px;flex:none" aria-label="${esc(n)} 빼기">✕</button></div>`).join('')}</div>
       <form id="addCheckForm" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="field" id="newCheck" placeholder="예: 절 108배" autocomplete="off"><button class="btn" type="submit">추가</button></form>
       <p class="step-label">글자를 눌러 바로 고칠 수 있어요. 고친 목록은 모든 날에 똑같이 나와요.</p>`
-    : tbList().length ? tbList().map(n => `<div class="habit ck-row"><label class="ck-name"><input type="checkbox" class="tb-check" data-check="${esc(n)}" ${d.checks[n] ? 'checked' : ''}><span style="${d.checks[n] ? 'text-decoration:line-through;color:var(--ink-soft)' : ''}">${esc(n)}</span></label>
-      <span class="ck-paren"><input class="ck-note" data-note="${esc(n)}" value="${esc((d.notes || {})[n] || '')}" aria-label="${esc(n)} 기록" autocomplete="off"></span></div>`).join('')
+    : tbList().length ? `<div id="ckList">` + tbList().map(n => `<div class="habit ck-row" data-ckname="${esc(n)}"><label class="ck-name"><input type="checkbox" class="tb-check" data-check="${esc(n)}" ${d.checks[n] ? 'checked' : ''}><span style="${d.checks[n] ? 'text-decoration:line-through;color:var(--ink-soft)' : ''}">${esc(n)}</span></label>
+      <span class="ck-paren"><input class="ck-note" data-note="${esc(n)}" value="${esc((d.notes || {})[n] || '')}" aria-label="${esc(n)} 기록" autocomplete="off"></span></div>`).join('') + `</div>${tbList().length > 1 ? '<p class="step-label" style="margin:0">항목 글자를 꾹 누르면 위아래로 옮길 수 있어요.</p>' : ''}`
     : '<p class="step-label">항목 수정을 눌러 날마다 할 일을 넣어 보세요.</p>'}
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
@@ -891,6 +893,49 @@ function viewTimebox() {
     <textarea id="tbMemo" class="tb-memo" placeholder="오늘 떠오른 생각, 기억할 것" aria-label="메모">${esc(d.memo)}</textarea>
   </section>
   </div>`;
+}
+// 체크리스트 항목을 꾹 눌러서(0.45초) 위아래로 옮기기
+let ckDragging = false, ckEatClick = false;
+document.addEventListener('touchmove', e => { if (ckDragging) e.preventDefault(); }, { passive: false });
+document.addEventListener('click', e => { if (ckEatClick) { e.preventDefault(); e.stopPropagation(); ckEatClick = false; } }, true);
+function bindCheckDrag() {
+  const box = document.getElementById('ckList'); if (!box) return;
+  box.querySelectorAll('.ck-name').forEach(handle => {
+    const row = handle.closest('.ck-row');
+    let timer = null, startY = 0, baseTop = 0, pid = null;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    handle.addEventListener('pointerdown', e => {
+      if (e.button > 0) return;
+      startY = e.clientY; pid = e.pointerId;
+      timer = setTimeout(() => {
+        timer = null; ckDragging = true; ckEatClick = true;
+        row.classList.add('dragging'); baseTop = row.getBoundingClientRect().top;
+        try { handle.setPointerCapture(pid); } catch (_) {}
+        if (navigator.vibrate) try { navigator.vibrate(25); } catch (_) {}
+      }, 450);
+    });
+    handle.addEventListener('pointermove', e => {
+      if (timer && Math.abs(e.clientY - startY) > 8) return cancel();   // 움직이면 그냥 화면 넘기기
+      if (!ckDragging || !row.classList.contains('dragging')) return;
+      const rows = [...box.querySelectorAll('.ck-row')];
+      const prev = row.previousElementSibling, next = row.nextElementSibling;
+      if (prev && e.clientY < prev.getBoundingClientRect().top + prev.offsetHeight / 2) box.insertBefore(row, prev);
+      else if (next && e.clientY > next.getBoundingClientRect().top + next.offsetHeight / 2) box.insertBefore(next, row);
+      const now = row.getBoundingClientRect().top - (parseFloat(row.style.transform.replace(/[^\d.-]/g, '')) || 0);
+      row.style.transform = `translateY(${e.clientY - startY - (now - baseTop)}px)`;
+    });
+    const end = () => {
+      cancel();
+      if (!ckDragging || !row.classList.contains('dragging')) return;
+      ckDragging = false; row.classList.remove('dragging'); row.style.transform = '';
+      const order = [...box.querySelectorAll('.ck-row')].map(r => r.dataset.ckname);
+      if (order.join('\n') !== tbList().join('\n')) { setStamped('tbChecklist', order); toast('순서를 옮겼어요'); }
+      setTimeout(() => { ckEatClick = false; route(); }, 50);
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+    handle.addEventListener('contextmenu', e => e.preventDefault());
+  });
 }
 function afterTimebox() {
   const $ = id => document.getElementById(id);
@@ -916,6 +961,7 @@ function afterTimebox() {
   $('tbMemo').oninput = () => { grow($('tbMemo')); upd(d => d.memo = $('tbMemo').value); };
   $('tbListEdit').onclick = () => { tbListEdit = !tbListEdit; route(); };
   document.querySelectorAll('[data-note]').forEach(inp => inp.oninput = () => upd(d => { d.notes = d.notes || {}; const v = inp.value.trim(); if (v) d.notes[inp.dataset.note] = inp.value; else delete d.notes[inp.dataset.note]; }));
+  bindCheckDrag();
   document.querySelectorAll('[data-check]').forEach(cb => cb.onchange = () => { upd(d => { d.checks[cb.dataset.check] = cb.checked; }); route(); });
   document.querySelectorAll('[data-rmcheck]').forEach(b => b.onclick = () => { const l = tbList(); l.splice(+b.dataset.rmcheck, 1); setStamped('tbChecklist', l); route(); });
   document.querySelectorAll('[data-rename]').forEach(inp => inp.onchange = () => {
@@ -1803,7 +1849,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 55;
+const APP_VERSION = 56;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
