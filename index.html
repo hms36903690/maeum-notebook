@@ -1113,14 +1113,30 @@ function renderAnswer(s) {
   if (Array.isArray(a)) { const xs = a.map((x, i) => [x, i]).filter(([x]) => x.trim()); return xs.length ? `<ul>${xs.map(([x, i]) => `<li>${s.labels ? `<b>${esc(s.labels[i])}</b> ` : ''}${esc(x)}</li>`).join('')}</ul>` : '<p class="step-label">(비워 둠)</p>'; }
   return a.trim() ? `<p>${esc(a)}</p>` : '<p class="step-label">(비워 둠)</p>';
 }
+let entryEdit = null;
+// 쓴 기록 고치기: 질문마다 글 칸이 열려요
+function viewEntryEdit(e) {
+  const field = (s, i) => {
+    if (s.t === 'sort') return `<div>${s.a.map((x, j) => `<div class="sort-item"><span>${esc(x.t)}</span><div class="seg">
+        <button type="button" data-esort="${i}:${j}" data-can="1" class="${x.can === true ? 'on' : ''}">할 수 있어요</button>
+        <button type="button" data-esort="${i}:${j}" data-can="0" class="${x.can === false ? 'on' : ''}">어쩔 수 없어요</button></div></div>`).join('') || '<p class="step-label">(나눈 걱정이 없어요)</p>'}</div>`;
+    if (Array.isArray(s.a)) return `<div class="list-fields">${s.a.map((v, j) => `<label><b>${s.labels ? '' : j + 1}</b>${s.labels ? `<span class="step-label" style="flex:none;width:5em">${esc(s.labels[j])}</span>` : ''}<input class="field" data-ei="${i}" data-ej="${j}" value="${esc(v)}" autocomplete="off"></label>`).join('')}</div>`;
+    return `<textarea data-ei="${i}" rows="4" class="grow">${esc(s.a)}</textarea>`;
+  };
+  return `
+  <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)} 고치기</h1><p class="lead">${prettyDate(e.date)}</p></header>
+  <article class="sk entry-body" style="transform:none">${e.steps.map((s, i) => `<div><h4>${esc(s.p)}</h4>${field(s, i)}</div>`).join('')}</article>
+  <div class="actions"><button type="button" class="btn ghost" id="editCancel">그만두기</button><button type="button" class="btn primary" id="editSave">저장</button></div>`;
+}
 function viewEntry(id) {
   const e = id === 'sample' ? SAMPLE_ENTRY : entries.find(x => x.id === id);
   if (!e) return `<button type="button" class="back" data-go="shelf">← 책장으로</button><p class="empty">이 기록을 찾을 수 없어요.</p>`;
+  if (entryEdit && entryEdit.id === id) return viewEntryEdit(entryEdit);
   return `
   <button type="button" class="back" data-go="shelf">← 책장으로</button>
   <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)}</h1><p class="lead">${prettyDate(e.date)}${e.sample ? ' · 예시' : ''}</p></header>
   <article class="sk entry-body" style="transform:none">${e.steps.map(s => `<div><h4>${esc(s.p)}</h4>${renderAnswer(s)}</div>`).join('')}</article>
-  ${e.sample ? '' : `<div class="actions"><div class="tools"><button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
+  ${e.sample ? '' : `<div class="actions"><div class="tools"><button type="button" class="btn primary" id="editE">고치기</button><button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
 }
 function entryText(e) {
   return `${e.title} (${prettyDate(e.date)})\n\n` + e.steps.map(s => {
@@ -1218,8 +1234,29 @@ function afterRender(h) {
   }
   if (h === 'settings') { afterSync(); bindUpdateBox(); bindInstall(); }
   if (h === 'shelf' && $('backupNow')) { if ($('lockNow')) $('lockNow').onclick = lockApp; $('backupNow').onclick = downloadBackup; $('restoreFile2').onchange = () => restoreFrom($('restoreFile2').files[0]); }
+  if (!h.startsWith('entry-')) entryEdit = null;
   if (h.startsWith('entry-')) {
     const id = h.slice(6), e = entries.find(x => x.id === id);
+    if ($('editE')) $('editE').onclick = () => { entryEdit = JSON.parse(JSON.stringify(e)); route(); window.scrollTo(0, 0); };
+    if (entryEdit && entryEdit.id === id) {
+      const ed = entryEdit;
+      const grow = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 4 + 'px'; };
+      document.querySelectorAll('textarea.grow').forEach(grow);
+      document.querySelectorAll('[data-ei]').forEach(inp => inp.oninput = () => {
+        const s = ed.steps[+inp.dataset.ei];
+        if (inp.dataset.ej !== undefined) s.a[+inp.dataset.ej] = inp.value; else { s.a = inp.value; if (inp.tagName === 'TEXTAREA') grow(inp); }
+      });
+      document.querySelectorAll('[data-esort]').forEach(b => b.onclick = () => {
+        const [i, j] = b.dataset.esort.split(':').map(Number); ed.steps[i].a[j].can = b.dataset.can === '1'; route();
+      });
+      $('editCancel').onclick = () => { entryEdit = null; route(); };
+      $('editSave').onclick = () => {
+        const i = entries.findIndex(x => x.id === id); if (i < 0) return;
+        entries[i] = { ...ed, mod: Date.now() };   // 고친 시각을 남겨서 다른 기기에도 고친 내용이 이겨요
+        saveEntries(); entryEdit = null; toast('고쳤어요'); route();
+      };
+      return;
+    }
     if ($('delE')) $('delE').onclick = () => {
       if (confirmDel === id) { entries = entries.filter(x => x.id !== id); tomb(id); saveEntries(); confirmDel = null; toast('지웠어요'); go('shelf'); }
       else { confirmDel = id; route(); }
@@ -1749,7 +1786,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 52;
+const APP_VERSION = 53;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
