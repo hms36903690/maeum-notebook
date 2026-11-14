@@ -693,12 +693,12 @@ function viewMap() {
       <p class="map-eyebrow">보기 · 한 달쯤 지난 지도</p><p class="map-goal">${SAMPLE_MAP.goal}</p>
       ${treeSVG(SAMPLE_MAP.habits, SAMPLE_MAP.counts)}</section>`}
     <form class="sk" id="mapForm" style="transform:none;display:flex;flex-direction:column;gap:14px">
-      <h2 style="font-size:1.4rem">${map ? '지도 고치기' : '내 지도 그리기'}</h2>
+      <h2 style="font-size:1.4rem">${map ? '지도 수정' : '내 지도 그리기'}</h2>
       <label><span class="prompt" style="display:block;font-size:1.3rem">목표</span>
         <input class="field" id="mGoal" value="${esc(g.goal)}" placeholder="예: 가벼운 몸으로 봄을 맞기" required></label>
       <div><span class="prompt" style="display:block;font-size:1.3rem">꾸준히 할 것</span>
         <div class="list-fields">${[0, 1, 2, 3].map(i => `<label><b>${i + 1}</b><input class="field" id="mH${i}" value="${esc(g.habits[i] || '')}" placeholder="${['아침 물 한 잔', '20분 걷기', '밤 11시 전 화면 끄기', '(비워도 돼요)'][i]}"></label>`).join('')}</div></div>
-      <div class="actions">${map ? '<button type="button" class="btn ghost" id="cancelEdit">그만두기</button>' : '<span></span>'}<button class="btn primary" type="submit">${map ? '고치기' : '나무 심기'}</button></div>
+      <div class="actions">${map ? '<button type="button" class="btn ghost" id="cancelEdit">그만두기</button>' : '<span></span>'}<button class="btn primary" type="submit">${map ? '수정' : '나무 심기'}</button></div>
     </form>`;
   }
   const t = today(), checks = map.checks[t] || map.habits.map(() => false);
@@ -720,7 +720,7 @@ function viewMap() {
     ${map.habits.map((h, i) => `<div class="habit"><span>${esc(h)} <span class="cnt">· ${counts[i]}번</span></span>
       <button type="button" class="do-btn ${checks[i] ? 'on' : ''}" data-hb="${i}" aria-pressed="${!!checks[i]}">${checks[i] ? '했어요 ✓' : '오늘 했어요'}</button></div>`).join('')}
   </section>
-  <div class="actions"><button type="button" class="btn ghost" id="editMap">지도 고치기</button><button type="button" class="btn ghost" id="resetMap">${confirmDel === 'map' ? '정말 새로 시작할까요? 한 번 더 누르면 지워져요' : '새 나무 심기'}</button></div>`;
+  <div class="actions"><button type="button" class="btn ghost" id="editMap">지도 수정</button><button type="button" class="btn ghost" id="resetMap">${confirmDel === 'map' ? '정말 새로 시작할까요? 한 번 더 누르면 지워져요' : '새 나무 심기'}</button></div>`;
 }
 
 // ---------- 타임박싱 ----------
@@ -878,13 +878,13 @@ function viewTimebox() {
   <div class="tb-half">
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
     <div class="row"><h2 style="font-size:1.3rem">매일 체크리스트</h2>
-      <button type="button" class="btn ghost" id="tbListEdit" style="padding:0;font-size:.85rem">${tbListEdit ? '다 고쳤어요' : '항목 고치기'}</button></div>
+      <button type="button" class="btn ghost" id="tbListEdit" style="padding:0;font-size:.85rem">${tbListEdit ? '수정 끝' : '항목 수정'}</button></div>
     ${tbListEdit ? `<div class="tb-top">${tbList().map((n, i) => `<div class="habit"><input class="field" data-rename="${i}" value="${esc(n)}" aria-label="${i + 1}번 항목 이름" autocomplete="off"><button type="button" class="btn ghost" data-rmcheck="${i}" style="padding:0 4px;flex:none" aria-label="${esc(n)} 빼기">✕</button></div>`).join('')}</div>
       <form id="addCheckForm" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="field" id="newCheck" placeholder="예: 절 108배" autocomplete="off"><button class="btn" type="submit">추가</button></form>
       <p class="step-label">글자를 눌러 바로 고칠 수 있어요. 고친 목록은 모든 날에 똑같이 나와요.</p>`
     : tbList().length ? tbList().map(n => `<div class="habit ck-row"><label class="ck-name"><input type="checkbox" class="tb-check" data-check="${esc(n)}" ${d.checks[n] ? 'checked' : ''}><span style="${d.checks[n] ? 'text-decoration:line-through;color:var(--ink-soft)' : ''}">${esc(n)}</span></label>
       <span class="ck-paren"><input class="ck-note" data-note="${esc(n)}" value="${esc((d.notes || {})[n] || '')}" aria-label="${esc(n)} 기록" autocomplete="off"></span></div>`).join('')
-    : '<p class="step-label">항목 고치기를 눌러 날마다 할 일을 넣어 보세요.</p>'}
+    : '<p class="step-label">항목 수정을 눌러 날마다 할 일을 넣어 보세요.</p>'}
   </section>
   <section class="sk" style="transform:none;display:flex;flex-direction:column;gap:8px">
     <h2 style="font-size:1.3rem">메모</h2>
@@ -928,7 +928,7 @@ function afterTimebox() {
       if (d.checks && old in d.checks) { d.checks[nu] = d.checks[old]; delete d.checks[old]; d.mod = Date.now(); }
       if (d.notes && old in d.notes) { d.notes[nu] = d.notes[old]; delete d.notes[old]; d.mod = Date.now(); }
     }
-    store.set('timebox', all); toast('고쳤어요');
+    store.set('timebox', all); toast('수정했어요');
   });
   document.querySelectorAll('[data-rename]').forEach(inp => inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
   if ($('addCheckForm')) { $('addCheckForm').onsubmit = ev => { ev.preventDefault(); const n = $('newCheck').value.trim(); if (!n) return; const l = tbList(); if (!l.includes(n)) l.push(n); setStamped('tbChecklist', l); route(); }; }
@@ -1015,10 +1015,10 @@ function viewTogether() {
       <span class="who"><b>나</b> · ${p.date === t ? new Date(p.at).toTimeString().slice(0, 5) : prettyDate(p.date)}</span>
       <button type="button" class="heart ${p.liked ? 'on' : ''}" data-like="${p.id}" aria-pressed="${!!p.liked}" aria-label="마음에 남기기">${p.liked ? '♥' : '♡'}</button>
       ${postEdit === p.id
-        ? `<div class="post-edit"><input class="field" id="postEditText" value="${esc(p.text)}" aria-label="한 줄 고치기" autocomplete="off">
+        ? `<div class="post-edit"><input class="field" id="postEditText" value="${esc(p.text)}" aria-label="한 줄 수정" autocomplete="off">
             <div class="tools"><button type="button" class="btn primary" id="postEditSave">저장</button><button type="button" class="btn ghost" id="postEditCancel">그만두기</button></div></div>`
         : `<span class="txt">${esc(p.text)}</span>
-      <span class="tools" style="gap:14px"><button type="button" class="del" data-editpost="${p.id}">고치기</button><button type="button" class="del" data-delpost="${p.id}">${confirmDel === p.id ? '정말 지울까요? 한 번 더' : '지우기'}</button></span>`}
+      <span class="tools" style="gap:14px"><button type="button" class="del" data-editpost="${p.id}">수정</button><button type="button" class="del" data-delpost="${p.id}">${confirmDel === p.id ? '정말 지울까요? 한 번 더' : '지우기'}</button></span>`}
     </div>`;
   return `
   <header style="display:flex;flex-direction:column;gap:8px"><h1>하루 한 줄</h1>
@@ -1118,7 +1118,7 @@ function renderAnswer(s) {
   return a.trim() ? `<p>${esc(a)}</p>` : '<p class="step-label">(비워 둠)</p>';
 }
 let entryEdit = null;
-// 쓴 기록 고치기: 질문마다 글 칸이 열려요
+// 쓴 기록 수정: 질문마다 글 칸이 열려요
 function viewEntryEdit(e) {
   const field = (s, i) => {
     if (s.t === 'sort') return `<div>${s.a.map((x, j) => `<div class="sort-item"><span>${esc(x.t)}</span><div class="seg">
@@ -1128,7 +1128,7 @@ function viewEntryEdit(e) {
     return `<textarea data-ei="${i}" rows="4" class="grow">${esc(s.a)}</textarea>`;
   };
   return `
-  <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)} 고치기</h1><p class="lead">${prettyDate(e.date)}</p></header>
+  <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)} 수정</h1><p class="lead">${prettyDate(e.date)}</p></header>
   <article class="sk entry-body" style="transform:none">${e.steps.map((s, i) => `<div><h4>${esc(s.p)}</h4>${field(s, i)}</div>`).join('')}</article>
   <div class="actions"><button type="button" class="btn ghost" id="editCancel">그만두기</button><button type="button" class="btn primary" id="editSave">저장</button></div>`;
 }
@@ -1140,7 +1140,7 @@ function viewEntry(id) {
   <button type="button" class="back" data-go="shelf">← 책장으로</button>
   <header style="display:flex;flex-direction:column;gap:6px"><h1 style="font-size:2rem">${esc(e.title)}</h1><p class="lead">${prettyDate(e.date)}${e.sample ? ' · 예시' : ''}</p></header>
   <article class="sk entry-body" style="transform:none">${e.steps.map(s => `<div><h4>${esc(s.p)}</h4>${renderAnswer(s)}</div>`).join('')}</article>
-  ${e.sample ? '' : `<div class="actions"><div class="tools"><button type="button" class="btn primary" id="editE">고치기</button><button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
+  ${e.sample ? '' : `<div class="actions"><div class="tools"><button type="button" class="btn primary" id="editE">수정</button><button type="button" class="btn" id="pdfE">PDF로 저장</button><button type="button" class="btn ghost" id="copyE">글로 복사</button></div><button type="button" class="btn ghost" id="delE">${confirmDel === e.id ? '정말 지울까요? 한 번 더 누르세요' : '이 기록 지우기'}</button></div>`}`;
 }
 function entryText(e) {
   return `${e.title} (${prettyDate(e.date)})\n\n` + e.steps.map(s => {
@@ -1193,7 +1193,7 @@ function afterRender(h) {
       if (!habits.length) { toast('꾸준히 할 것을 하나 이상 적어 주세요'); return; }
       const old = map && map.checks || {};
       const was = !!map;
-      map = { goal: $('mGoal').value.trim(), habits, checks: old, checksAt: (map && map.checksAt) || {}, since: (map && map.since) || today(), id: (map && map.id) || 'm' + Date.now(), mod: Date.now() }; saveMap(); toast(was ? '지도를 고쳤어요' : '나무를 심었어요'); route();
+      map = { goal: $('mGoal').value.trim(), habits, checks: old, checksAt: (map && map.checksAt) || {}, since: (map && map.since) || today(), id: (map && map.id) || 'm' + Date.now(), mod: Date.now() }; saveMap(); toast(was ? '지도를 수정했어요' : '나무를 심었어요'); route();
     };
     document.querySelectorAll('[data-hb]').forEach(b => b.onclick = () => {
       const t = today(), i = +b.dataset.hb; map.checks[t] = map.checks[t] || map.habits.map(() => false);
@@ -1225,7 +1225,7 @@ function afterRender(h) {
       const save = () => {
         const t = $('postEditText').value.trim(), p = posts.find(x => x.id === postEdit);
         if (!t) return toast('한 줄이 비어 있어요. 지우려면 지우기를 눌러 주세요');
-        if (p && t !== p.text) { p.text = t; p.mod = Date.now(); savePosts(); toast('고쳤어요'); }
+        if (p && t !== p.text) { p.text = t; p.mod = Date.now(); savePosts(); toast('수정했어요'); }
         postEdit = null; route();
       };
       $('postEditSave').onclick = save;
@@ -1270,7 +1270,7 @@ function afterRender(h) {
       $('editSave').onclick = () => {
         const i = entries.findIndex(x => x.id === id); if (i < 0) return;
         entries[i] = { ...ed, mod: Date.now() };   // 고친 시각을 남겨서 다른 기기에도 고친 내용이 이겨요
-        saveEntries(); entryEdit = null; toast('고쳤어요'); route();
+        saveEntries(); entryEdit = null; toast('수정했어요'); route();
       };
       return;
     }
@@ -1803,7 +1803,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 54;
+const APP_VERSION = 55;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
