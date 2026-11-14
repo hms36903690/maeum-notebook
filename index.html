@@ -193,6 +193,8 @@ textarea:focus, .field:focus { outline: none; }
 .list-fields label { display: flex; gap: 10px; align-items: baseline; }
 .list-fields b { font-family: var(--font-hand); font-size: 1.2rem; width: 1.2em; flex: none; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.pick-chip { background: var(--card); color: var(--ink); cursor: pointer; }
+.pick-chip.on { background: var(--marker); color: var(--marker-ink); border-color: var(--line); }
 .chip { border: 1.5px solid var(--ink-soft); border-radius: 14px; padding: 2px 12px; font-size: .92rem; }
 .sort-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--shadow); }
 .sort-item > span { min-width: 0; overflow-wrap: anywhere; }
@@ -387,7 +389,7 @@ const EXERCISES = [
     desc: '오늘 고마웠던 일 세 가지와 그중 하나가 고마웠던 이유.',
     steps: [
       { p: '오늘 고마웠던 일 세 가지', t: 'list', n: 3, h: '아주 작은 것도 좋아요.' },
-      { p: '그중 하나가 고마웠던 이유는?', show: 0 }
+      { p: '그중 하나를 골라, 고마웠던 이유를 적어요.', show: 0, pickShow: true, h: '위에서 하나를 누르면 글 앞에 들어가요.' }
     ] },
   { id: 'create10', title: '현실 창조 10단계', time: '10분', heading: '소망 그리기',
     desc: '이루고 싶은 것 하나를 골라, 이미 이뤄진 날의 장면을 그리고 오늘 뻗을 한 발을 정해요.',
@@ -565,8 +567,11 @@ function viewRun(id) {
   let above = '';
   if (typeof s.show === 'number') {
     const src = run.answers[s.show];
-    const items = Array.isArray(src) ? src.filter(Boolean) : src ? [src] : [];
-    if (items.length) above = `<div class="chips">${items.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>`;
+    // 앞에서 쓴 것을 번호와 함께 보여 줘요 (번호는 앞 칸의 순서 그대로)
+    const items = Array.isArray(src) ? src.map((t, i) => [t, i + 1]).filter(([t]) => t && t.trim()) : src ? [[src, 0]] : [];
+    if (items.length) above = `<div class="chips">${items.map(([t, n]) => s.pickShow
+      ? `<button type="button" class="chip pick-chip ${String(a).startsWith('「' + t + '」') ? 'on' : ''}" data-showpick="${esc(t)}">${n ? n + '. ' : ''}${esc(t)}</button>`
+      : `<span class="chip">${n ? n + '. ' : ''}${esc(t)}</span>`).join('')}</div>`;
   } else if (s.show === 'can' || s.show === 'cannot') {
     const items = canList(run, s.show === 'can');
     above = items.length ? `<div class="chips">${items.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>`
@@ -1208,6 +1213,11 @@ function afterRender(h) {
     if ($('restartBtn')) $('restartBtn').onclick = () => { store.del('draft:' + run.id); tomb('draft:' + run.id); run = startRun(run.id); route(); };
     const s = run.steps[run.step];
     const ta = $('ta'); if (ta) ta.oninput = () => { run.answers[run.step] = ta.value; saveDraft(); };
+    document.querySelectorAll('[data-showpick]').forEach(b => b.onclick = () => {
+      const tag = '「' + b.dataset.showpick + '」 ', rest = String(run.answers[run.step] || '').replace(/^「[^」]*」\s*/, '');
+      run.answers[run.step] = tag + rest; saveDraft(); route();
+      const t = $('ta'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+    });
     document.querySelectorAll('[data-li]').forEach(inp => inp.oninput = () => { run.answers[run.step][+inp.dataset.li] = inp.value; saveDraft(); });
     document.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { run.answers[run.step][+b.dataset.sort].can = b.dataset.can === '1'; saveDraft(); route(); });
     const own = $('ownQ'); if (own) own.oninput = () => { s.p = own.value; saveDraft(); };
@@ -1849,7 +1859,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 56;
+const APP_VERSION = 57;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
