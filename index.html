@@ -293,6 +293,7 @@ nav.tabs button.on::after {
 .line-item .txt { grid-column: 1; font-size: 1.05rem; overflow-wrap: anywhere; }
 .line-item .heart { grid-row: 1 / span 2; grid-column: 2; border: 0; background: none; color: var(--ink-soft); font-size: 1rem; }
 .line-item .heart.on { color: #c4553a; }
+.post-edit { grid-column: 1; display: flex; flex-direction: column; gap: 8px; }
 .line-item .del { border: 0; background: none; color: var(--ink-soft); font-size: .82rem; padding: 0; text-decoration: underline; justify-self: start; }
 .sec-head { display: flex; justify-content: space-between; align-items: baseline; }
 .side-nav { position: fixed; top: 50%; display: flex; align-items: center; gap: 12px; border: 0; background: none; color: var(--ink-soft); z-index: 4; }
@@ -987,7 +988,7 @@ function afterTimebox() {
 
 // ---------- 하루 한 줄 ----------
 const BASE_CATS = ['운동', '명상', '독서', '확언', '감정일기 쓰기'];
-let postCat = '명상', addingCat = false;
+let postCat = '명상', addingCat = false, postEdit = null;
 function allCats() {
   const extra = store.get('cats', []);
   const fromPosts = posts.map(p => p.cat).filter(c => !BASE_CATS.includes(c) && !extra.includes(c));
@@ -1013,8 +1014,11 @@ function viewTogether() {
   const row = p => `<div class="line-item">
       <span class="who"><b>나</b> · ${p.date === t ? new Date(p.at).toTimeString().slice(0, 5) : prettyDate(p.date)}</span>
       <button type="button" class="heart ${p.liked ? 'on' : ''}" data-like="${p.id}" aria-pressed="${!!p.liked}" aria-label="마음에 남기기">${p.liked ? '♥' : '♡'}</button>
-      <span class="txt">${esc(p.text)}</span>
-      <button type="button" class="del" data-delpost="${p.id}">${confirmDel === p.id ? '정말 지울까요? 한 번 더' : '지우기'}</button>
+      ${postEdit === p.id
+        ? `<div class="post-edit"><input class="field" id="postEditText" value="${esc(p.text)}" aria-label="한 줄 고치기" autocomplete="off">
+            <div class="tools"><button type="button" class="btn primary" id="postEditSave">저장</button><button type="button" class="btn ghost" id="postEditCancel">그만두기</button></div></div>`
+        : `<span class="txt">${esc(p.text)}</span>
+      <span class="tools" style="gap:14px"><button type="button" class="del" data-editpost="${p.id}">고치기</button><button type="button" class="del" data-delpost="${p.id}">${confirmDel === p.id ? '정말 지울까요? 한 번 더' : '지우기'}</button></span>`}
     </div>`;
   return `
   <header style="display:flex;flex-direction:column;gap:8px"><h1>하루 한 줄</h1>
@@ -1216,6 +1220,18 @@ function afterRender(h) {
       tomb('cat:' + postCat); store.set('cats', store.get('cats', []).filter(c => c !== postCat)); confirmDel = null; postCat = BASE_CATS[0]; route();
     };
     document.querySelectorAll('[data-like]').forEach(b => b.onclick = () => { const p = posts.find(x => x.id === b.dataset.like); p.liked = !p.liked; p.mod = Date.now(); savePosts(); route(); });
+    document.querySelectorAll('[data-editpost]').forEach(b => b.onclick = () => { postEdit = b.dataset.editpost; confirmDel = null; route(); const i = $('postEditText'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+    if ($('postEditText')) {
+      const save = () => {
+        const t = $('postEditText').value.trim(), p = posts.find(x => x.id === postEdit);
+        if (!t) return toast('한 줄이 비어 있어요. 지우려면 지우기를 눌러 주세요');
+        if (p && t !== p.text) { p.text = t; p.mod = Date.now(); savePosts(); toast('고쳤어요'); }
+        postEdit = null; route();
+      };
+      $('postEditSave').onclick = save;
+      $('postEditText').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); save(); } };
+      $('postEditCancel').onclick = () => { postEdit = null; route(); };
+    }
     document.querySelectorAll('[data-delpost]').forEach(b => b.onclick = () => {
       const id = b.dataset.delpost;
       if (confirmDel !== id) { confirmDel = id; return route(); }
@@ -1235,6 +1251,7 @@ function afterRender(h) {
   if (h === 'settings') { afterSync(); bindUpdateBox(); bindInstall(); }
   if (h === 'shelf' && $('backupNow')) { if ($('lockNow')) $('lockNow').onclick = lockApp; $('backupNow').onclick = downloadBackup; $('restoreFile2').onchange = () => restoreFrom($('restoreFile2').files[0]); }
   if (!h.startsWith('entry-')) entryEdit = null;
+  if (h !== 'together') postEdit = null;
   if (h.startsWith('entry-')) {
     const id = h.slice(6), e = entries.find(x => x.id === id);
     if ($('editE')) $('editE').onclick = () => { entryEdit = JSON.parse(JSON.stringify(e)); route(); window.scrollTo(0, 0); };
@@ -1786,7 +1803,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 53;
+const APP_VERSION = 54;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
