@@ -1,6 +1,6 @@
 // 마음 공책 오프라인 지원. 화면 파일만 저장하고, 기록은 다루지 않습니다.
-const CACHE = 'maeum-notebook-v60';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const CACHE = 'maeum-notebook-v61';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './korean-lunar-calendar.min.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

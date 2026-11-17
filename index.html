@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
+<script src="./korean-lunar-calendar.min.js"></script>
 <link rel="icon" type="image/png" href="./icon-192.png">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <style>
@@ -182,9 +183,13 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .mc-day.today .mc-num { outline: 2px solid var(--dot); outline-offset: 1px; }
 .mc-day.sel { background: color-mix(in srgb, var(--marker) 45%, transparent); }
 .mc-t { font-size: .74rem; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow-wrap: anywhere; border-top: 1px dashed var(--shadow); padding-top: 2px; }
-.mc-dot { position: absolute; right: 4px; top: 3px; color: var(--dot); font-size: 1rem; line-height: 1; }
+.mc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 2px; }
+.mc-lunar { font-size: .66rem; color: var(--ink-soft); line-height: 1.2; padding-top: 1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mc-lunar.first { color: var(--ink); font-weight: 700; }
+.mc-lunar-h { display: block; font-family: var(--font-body); font-size: .85rem; font-weight: 400; color: var(--ink-soft); }
+.mc-dot { position: absolute; right: 3px; bottom: 2px; color: var(--dot); font-size: 1rem; line-height: 1; }
 .mc-edit { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-@media (min-width: 760px) { .mc-day { min-height: 96px; } .mc-t { font-size: .85rem; } }
+@media (min-width: 760px) { .mc-day { min-height: 96px; } .mc-t { font-size: .85rem; } .mc-lunar { font-size: .78rem; } }
 .divider { display: block; width: 100%; height: 10px; overflow: visible; }
 .divider path { fill: none; stroke: var(--line); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .search { border: 0; border-bottom: 2px solid var(--line); background: transparent; width: 100%; padding: 8px 0; font: inherit; color: var(--ink); }
@@ -772,6 +777,15 @@ const MONTH_SECTIONS = [
   ['etc', '기타', 'var(--shadow)']
 ];
 let monthKey = null, monthSel = null;
+// 음력 (한국천문연구원 기준 korean-lunar-calendar). 부품을 못 불러오면 음력만 빼고 보여 줘요
+function lunarOf(y, m, d) {
+  try {
+    const c = new KoreanLunarCalendar();
+    if (!c.setSolarDate(y, m, d)) return null;
+    const l = c.getLunarCalendar();
+    return { m: l.month, d: l.day, leap: !!l.intercalation };
+  } catch (e) { return null; }
+}
 const ymKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 function monthAll() { return store.get('monthly', {}); }
 function monthGet(k) { return Object.assign({ affirm: '', must: '', later: '', delegate: '', etc: '', days: {} }, monthAll()[k] || {}); }
@@ -792,12 +806,12 @@ function viewMonth() {
   for (let d = 1; d <= last; d++) {
     const dd = m.days[d] || {}, dk = `${k}-${pad(d)}`, wd = (first + d - 1) % 7;
     cells += `<button type="button" class="mc-day ${dd.done ? 'done' : ''} ${dk === td ? 'today' : ''} ${monthSel === d ? 'sel' : ''}" data-mday="${d}" aria-label="${mo}월 ${d}일">
-      <span class="mc-num ${wd === 0 ? 'sun' : wd === 6 ? 'sat' : ''}">${dd.done ? '✓' : d}</span>
+      <span class="mc-top"><span class="mc-num ${wd === 0 ? 'sun' : wd === 6 ? 'sat' : ''}">${dd.done ? '✓' : d}</span>${(() => { const l = lunarOf(y, mo, d); return l ? `<span class="mc-lunar ${l.d === 1 || d === 1 ? 'first' : ''}">${l.leap ? '윤' : ''}${l.d === 1 || d === 1 ? l.m + '.' + l.d : l.d}</span>` : ''; })()}</span>
       <span class="mc-t">${esc(dd.t || '')}</span>${dd.note ? '<span class="mc-dot">•</span>' : ''}</button>`;
   }
   const sel = monthSel ? (m.days[monthSel] || {}) : null;
   const editor = monthSel ? `<section class="sk mc-edit" style="transform:none">
-      <div class="row"><h2 style="font-size:1.3rem">${mo}월 ${monthSel}일 (${'일월화수목금토'[(first + monthSel - 1) % 7]})</h2>
+      <div class="row"><h2 style="font-size:1.3rem">${mo}월 ${monthSel}일 (${'일월화수목금토'[(first + monthSel - 1) % 7]})${(() => { const l = lunarOf(y, mo, monthSel); return l ? `<small class="mc-lunar-h">음력 ${l.leap ? '윤' : ''}${l.m}월 ${l.d}일</small>` : ''; })()}</h2>
         <button type="button" class="btn ${sel.done ? 'primary' : ''}" id="mDone">${sel.done ? '했어요 ✓' : '체크하기'}</button></div>
       <label class="step-label" for="mTitle">이날 일정·할 일</label>
       <input class="field" id="mTitle" value="${esc(sel.t || '')}" placeholder="예: 친정아버지 기제일" autocomplete="off">
@@ -1996,7 +2010,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 60;
+const APP_VERSION = 61;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
