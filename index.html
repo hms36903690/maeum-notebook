@@ -159,6 +159,32 @@ button.sk:hover, a.sk:hover { transform: rotate(0) translate(-1px,-2px); box-sha
 .tb-range { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--ink-soft); font-size: .9rem; }
 .tb-range select { font: inherit; color: var(--ink); background: var(--card); border: 1.5px solid var(--line); border-radius: 8px; padding: 2px 6px; }
 .update-bar { width: 100%; border: 2px solid var(--line); background: var(--marker); color: var(--marker-ink); border-radius: 12px; padding: 8px 12px; font-size: .95rem; text-align: center; box-shadow: 2px 3px 0 var(--shadow); }
+.mc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mc-head h1 { font-size: 2.6rem; text-align: center; flex: 1; }
+.mc-head h1 small { font-size: 1rem; font-family: var(--font-body); color: var(--ink-soft); display: block; font-weight: 400; }
+.mc-wrap { display: flex; flex-direction: column; gap: 14px; }
+@media (min-width: 760px) { .wrap:has(.mc-wrap) { max-width: 1040px; } .mc-wrap { display: grid; grid-template-columns: minmax(220px, 30%) 1fr; align-items: start; } }
+.mc-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mc-affirm { background: var(--tb4); border-radius: 6px; padding: 8px 10px; }
+.mc-affirm textarea { min-height: 5.7em; font-size: .95rem; }
+.mc-sec { display: flex; flex-direction: column; }
+.mc-band { color: var(--ink); font-size: .9rem; font-weight: 700; text-align: center; padding: 4px 6px; border-radius: 4px; }
+.mc-lines { min-height: 3.8em; font-size: .95rem; }
+.mc-cal { min-width: 0; }
+.mc-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1.5px solid var(--line); border-left: 1px solid var(--shadow); }
+.mc-dow { text-align: center; font-size: .82rem; padding: 4px 0; border-right: 1px solid var(--shadow); border-bottom: 1.5px solid var(--line); font-weight: 700; }
+.mc-dow.sun, .mc-num.sun { color: #c4553a; }
+.mc-dow.sat, .mc-num.sat { color: #3d6fb4; }
+.mc-empty { border-right: 1px solid var(--shadow); border-bottom: 1px solid var(--shadow); }
+.mc-day { min-height: 74px; border: 0; border-right: 1px solid var(--shadow); border-bottom: 1px solid var(--shadow); background: transparent; text-align: left; padding: 4px 4px 6px; display: flex; flex-direction: column; gap: 3px; position: relative; min-width: 0; color: var(--ink); }
+.mc-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 1.5px solid var(--line); border-radius: 3px; font-size: .8rem; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--card); }
+.mc-day.done .mc-num { background: var(--leaf-pale); color: var(--ink); }
+.mc-day.today .mc-num { outline: 2px solid var(--dot); outline-offset: 1px; }
+.mc-day.sel { background: color-mix(in srgb, var(--marker) 45%, transparent); }
+.mc-t { font-size: .74rem; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow-wrap: anywhere; border-top: 1px dashed var(--shadow); padding-top: 2px; }
+.mc-dot { position: absolute; right: 4px; top: 3px; color: var(--dot); font-size: 1rem; line-height: 1; }
+.mc-edit { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+@media (min-width: 760px) { .mc-day { min-height: 96px; } .mc-t { font-size: .85rem; } }
 .divider { display: block; width: 100%; height: 10px; overflow: visible; }
 .divider path { fill: none; stroke: var(--line); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .search { border: 0; border-bottom: 2px solid var(--line); background: transparent; width: 100%; padding: 8px 0; font: inherit; color: var(--ink); }
@@ -491,13 +517,14 @@ function route() {
   if (h === 'sync') { location.replace('#settings'); return; }
   if (h === 'security') { location.hash = 'shelf'; return; }
   if (false) { document.getElementById('tabs').innerHTML = TABS.map(([k, l]) => `<button type="button" class="${k === 'shelf' ? 'on' : ''}" data-go="${k}">${l}</button>`).join(''); app.innerHTML = viewSecurity(); afterSecurity(); return; }
-  const base = h.startsWith('ex-') || h === 'map' || h === 'timebox' ? 'home' : h.startsWith('entry-') ? 'shelf' : h;
+  const base = h.startsWith('ex-') || h === 'map' || h === 'timebox' || h === 'month' ? 'home' : h.startsWith('entry-') ? 'shelf' : h;
   document.getElementById('tabs').innerHTML = TABS.map(([k, l]) =>
     `<button type="button" class="${k === base ? 'on' : ''}" data-go="${k}">${l}</button>`).join('');
-  document.getElementById('sideGo').hidden = base !== 'home';
+  document.getElementById('sideGo').hidden = base !== 'home' || h === 'month';
   if (h.startsWith('ex-')) app.innerHTML = viewRun(h.slice(3));
   else if (h === 'map') app.innerHTML = viewMap();
   else if (h === 'timebox') app.innerHTML = viewTimebox();
+  else if (h === 'month') app.innerHTML = viewMonth();
   else if (h === 'together') app.innerHTML = viewTogether();
   else if (h === 'calendar') app.innerHTML = viewCalendar();
   else if (h.startsWith('entry-')) app.innerHTML = viewEntry(h.slice(6));
@@ -527,6 +554,10 @@ function viewHome() {
   <button type="button" class="sk" data-go="map">
     <div class="row"><h3 style="font-size:1.4rem">나의 지도</h3><span class="meta">매일 1분</span></div>
     <p class="desc">${mapSummary()}</p>
+  </button>
+  <button type="button" class="sk" data-go="month">
+    <div class="row"><h3 style="font-size:1.4rem">월간 계획</h3><span class="meta">한 달 한 장</span></div>
+    <p class="desc">${monthSummary()}</p>
   </button>
   <button type="button" class="sk" data-go="timebox">
     <div class="row"><h3 style="font-size:1.4rem">타임박싱</h3><span class="meta">매일 아침 5분</span></div>
@@ -730,6 +761,97 @@ function viewMap() {
       <button type="button" class="do-btn ${checks[i] ? 'on' : ''}" data-hb="${i}" aria-pressed="${!!checks[i]}">${checks[i] ? '했어요 ✓' : '오늘 했어요'}</button></div>`).join('')}
   </section>
   <div class="actions"><button type="button" class="btn ghost" id="editMap">지도 수정</button><button type="button" class="btn ghost" id="resetMap">${confirmDel === 'map' ? '정말 새로 시작할까요? 한 번 더 누르면 지워져요' : '새 나무 심기'}</button></div>`;
+}
+
+// ---------- 월간 계획 ----------
+// 종이 플래너처럼: 왼쪽에 이달의 확언과 할 일 칸들, 오른쪽에 날짜마다 체크·한 줄·메모
+const MONTH_SECTIONS = [
+  ['must', '이달에 꼭 실행해야 하는 일', 'var(--tb2)'],
+  ['later', '미루어도 되는 일 (급하지 않은 일)', 'var(--tb4)'],
+  ['delegate', '위임하라 (다른 누군가가 할 수 있는 일)', 'var(--tb1)'],
+  ['etc', '기타', 'var(--shadow)']
+];
+let monthKey = null, monthSel = null;
+const ymKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+function monthAll() { return store.get('monthly', {}); }
+function monthGet(k) { return Object.assign({ affirm: '', must: '', later: '', delegate: '', etc: '', days: {} }, monthAll()[k] || {}); }
+function monthSave(k, m) { const all = monthAll(); m.mod = Date.now(); all[k] = m; store.set('monthly', all); }
+function monthSummary() {
+  const k = ymKey(new Date()), m = monthAll()[k];
+  if (!m) return '이달의 확언과 꼭 할 일을 적고, 날짜마다 일정을 체크해요 →';
+  const days = Object.values(m.days || {}), filled = days.filter(x => x.t || x.note).length, done = days.filter(x => x.done).length;
+  const first = (m.must || '').split('\n').map(x => x.trim()).filter(Boolean)[0];
+  return `이번 달 일정 ${filled}개 · 체크 ${done}개${first ? ' · 꼭 할 일: ' + esc(first) : ''} →`;
+}
+function viewMonth() {
+  const k = monthKey || ymKey(new Date()), m = monthGet(k);
+  const [y, mo] = k.split('-').map(Number);
+  const first = new Date(y, mo - 1, 1).getDay(), last = new Date(y, mo, 0).getDate(), td = today();
+  let cells = ['일', '월', '화', '수', '목', '금', '토'].map((d, i) => `<span class="mc-dow ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${d}</span>`).join('');
+  for (let i = 0; i < first; i++) cells += '<span class="mc-empty"></span>';
+  for (let d = 1; d <= last; d++) {
+    const dd = m.days[d] || {}, dk = `${k}-${pad(d)}`, wd = (first + d - 1) % 7;
+    cells += `<button type="button" class="mc-day ${dd.done ? 'done' : ''} ${dk === td ? 'today' : ''} ${monthSel === d ? 'sel' : ''}" data-mday="${d}" aria-label="${mo}월 ${d}일">
+      <span class="mc-num ${wd === 0 ? 'sun' : wd === 6 ? 'sat' : ''}">${dd.done ? '✓' : d}</span>
+      <span class="mc-t">${esc(dd.t || '')}</span>${dd.note ? '<span class="mc-dot">•</span>' : ''}</button>`;
+  }
+  const sel = monthSel ? (m.days[monthSel] || {}) : null;
+  const editor = monthSel ? `<section class="sk mc-edit" style="transform:none">
+      <div class="row"><h2 style="font-size:1.3rem">${mo}월 ${monthSel}일 (${'일월화수목금토'[(first + monthSel - 1) % 7]})</h2>
+        <button type="button" class="btn ${sel.done ? 'primary' : ''}" id="mDone">${sel.done ? '했어요 ✓' : '체크하기'}</button></div>
+      <label class="step-label" for="mTitle">이날 일정·할 일</label>
+      <input class="field" id="mTitle" value="${esc(sel.t || '')}" placeholder="예: 친정아버지 기제일" autocomplete="off">
+      <label class="step-label" for="mNote">메모</label>
+      <textarea id="mNote" class="grow" placeholder="예: 음력 9월 15일">${esc(sel.note || '')}</textarea>
+      <div class="actions"><button type="button" class="btn ghost" id="mClear">이날 비우기</button><button type="button" class="btn primary" id="mClose">닫기</button></div>
+    </section>` : '';
+  return `
+  <button type="button" class="back" data-go="home">← 목록으로</button>
+  <div class="mc-head">
+    <button type="button" class="btn ghost" id="mPrevM" aria-label="지난달">‹</button>
+    <h1><small>${y}년</small> ${mo}월</h1>
+    <button type="button" class="btn ghost" id="mNextM" aria-label="다음 달">›</button>
+  </div>
+  ${k !== ymKey(new Date()) ? '<div class="tools" style="justify-content:center"><button type="button" class="btn" id="mThis">이번 달로</button></div>' : ''}
+  <div class="mc-wrap">
+    <aside class="mc-side">
+      <div class="mc-affirm"><textarea id="mAffirm" class="grow" placeholder="이달의 확언 · 감사를 적어요.&#10;예: 다함께 잘 사는 세상을 만들기 위해 나눔을 실천하였더니 풍요로운 삶을 살게 되어서 감사합니다.">${esc(m.affirm)}</textarea></div>
+      ${MONTH_SECTIONS.map(([key, label, color]) => `<div class="mc-sec">
+        <div class="mc-band" style="background:${color}">${label}</div>
+        <textarea class="grow mc-lines" data-msec="${key}" placeholder="한 줄에 하나씩">${esc(m[key])}</textarea></div>`).join('')}
+    </aside>
+    <div class="mc-cal">
+      <div class="mc-grid">${cells}</div>
+      ${editor || '<p class="step-label" style="margin:8px 0 0">날짜를 누르면 그날 일정과 메모를 적고 체크할 수 있어요.</p>'}
+    </div>
+  </div>`;
+}
+function afterMonth() {
+  const $ = id => document.getElementById(id);
+  const k = monthKey || ymKey(new Date());
+  const upd = fn => { const m = monthGet(k); fn(m); monthSave(k, m); };
+  const grow = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 4 + 'px'; };
+  document.querySelectorAll('.mc-wrap textarea.grow, .mc-edit textarea.grow').forEach(grow);
+  const shift = n => { const [y, mo] = k.split('-').map(Number); monthKey = ymKey(new Date(y, mo - 1 + n, 1)); monthSel = null; route(); };
+  $('mPrevM').onclick = () => shift(-1);
+  $('mNextM').onclick = () => shift(1);
+  if ($('mThis')) $('mThis').onclick = () => { monthKey = null; monthSel = null; route(); };
+  $('mAffirm').oninput = () => { grow($('mAffirm')); upd(m => m.affirm = $('mAffirm').value); };
+  document.querySelectorAll('[data-msec]').forEach(t => t.oninput = () => { grow(t); upd(m => m[t.dataset.msec] = t.value); });
+  document.querySelectorAll('[data-mday]').forEach(b => b.onclick = () => {
+    const d = +b.dataset.mday; monthSel = monthSel === d ? null : d; route();
+    const ed = document.querySelector('.mc-edit'); if (ed) ed.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  if (monthSel) {
+    const d = monthSel;
+    const setDay = fn => upd(m => { const dd = { ...(m.days[d] || {}) }; fn(dd); if (!dd.t && !dd.note && !dd.done) delete m.days[d]; else m.days[d] = dd; });
+    $('mTitle').oninput = () => setDay(dd => dd.t = $('mTitle').value);
+    $('mTitle').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('mNote').focus(); } };
+    $('mNote').oninput = () => { grow($('mNote')); setDay(dd => dd.note = $('mNote').value); };
+    $('mDone').onclick = () => { setDay(dd => dd.done = !dd.done); route(); };
+    $('mClear').onclick = () => { upd(m => { delete m.days[d]; }); monthSel = null; route(); };
+    $('mClose').onclick = () => { monthSel = null; route(); };
+  }
 }
 
 // ---------- 타임박싱 ----------
@@ -1247,6 +1369,7 @@ function afterRender(h) {
   }
   if (h.startsWith('ex-') && run && run.done) { /* 완료 화면: 다음 진입 시 새로 시작 */ const r = run; setTimeout(() => { if (run === r) run = null; }, 0); }
   if (h === 'timebox') afterTimebox();
+  if (h === 'month') afterMonth();
   if (h === 'calendar') document.querySelectorAll('[data-tbday]').forEach(b => b.onclick = () => { tbDay = b.dataset.tbday; tbEdit = null; go('timebox'); });
   if (h === 'map') {
     const f = $('mapForm');
@@ -1620,6 +1743,9 @@ function mergeDB(a, b) {
   const ta = a.timebox || {}, tb = b.timebox || {}, tm = {};
   for (const d of new Set([...Object.keys(ta), ...Object.keys(tb)])) tm[d] = !ta[d] ? tb[d] : !tb[d] ? ta[d] : ((ta[d].mod || 0) >= (tb[d].mod || 0) ? ta[d] : tb[d]);
   out.timebox = tm;
+  const ma = a.monthly || {}, mb = b.monthly || {}, mm = {};
+  for (const k of new Set([...Object.keys(ma), ...Object.keys(mb)])) mm[k] = !ma[k] ? mb[k] : !mb[k] ? ma[k] : ((ma[k].mod || 0) >= (mb[k].mod || 0) ? ma[k] : mb[k]);
+  out.monthly = mm;
   const sa = a.stamps || {}, sb = b.stamps || {}, st = { ...sb };
   for (const [k, v] of Object.entries(sa)) st[k] = Math.max(st[k] || 0, v);
   out.stamps = st;
@@ -1870,7 +1996,7 @@ function bindInstall() {
 
 // ---------- 앱 업데이트 ----------
 // 고칠 때마다 이 숫자와 sw.js의 'maeum-notebook-vN'을 같이 올려요.
-const APP_VERSION = 59;
+const APP_VERSION = 60;
 let latestVersion = 0, checkingUpdate = false, lastCheck = 0;
 async function checkUpdate(show) {
   if (checkingUpdate) return; checkingUpdate = true;
